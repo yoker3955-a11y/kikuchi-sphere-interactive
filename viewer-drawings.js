@@ -27,8 +27,11 @@
   }
   const home = () => compose(quat([1,0,0],0.38),quat([0,1,0],-0.60));
   const params = new URLSearchParams(location.search);
+  $('pole-show-labels').checked=params.get('labels')!=='0';
   let q = home(), model = params.get('crystal') === 'BCC' ? 'BCC' : 'FCC';
   let edition = params.get('edition') === 'day' ? 'day' : 'teaching', zoom = 1, selected = null, highlight = false;
+  const directions=window.KikuchiDirection;
+  let activeDirection=null, poleUI=null, poleOverlay=null;
   let restoredOrientation = false;
   const sharedQ = (params.get('q') || '').split(',').map(Number);
   if (sharedQ.length === 4 && sharedQ.every(Number.isFinite) && Math.hypot(...sharedQ) > 0.1) {
@@ -57,6 +60,19 @@
     face.origin = sub(sub(face.vertices[0],mul(face.u,a[0])),mul(face.v,a[1]));
     face.center = mul(face.vertices.reduce(add,[0,0,0]),1/face.vertices.length);
     face.normal = norm(face.center);
+  });
+
+  poleOverlay=window.KikuchiPoleCatalog.create({data,rotate,project,schedule,
+    onSelect:p=>{clearTimeout(typeof settleTimer==='undefined'?0:settleTimer);selectFace(p.faceIndex,true);},
+    onAlign:setView,
+    onMagnify:p=>inspectPole({face:p.face,i:p.faceIndex},project(rotate(p.position)),p)
+  });
+
+  window.KikuchiPlanar.attach(()=>{
+    setSpin(false);
+    return {model,legend:data.legends[model],faces:data.faces,
+      basis:[[1,0,0],[0,1,0],[0,0,1]].map(rotate),direction:activeDirection&&activeDirection.slice(),
+      pins:poleOverlay.serialize().split(';').filter(Boolean)};
   });
 
   function schedule() { if (!frame) frame = requestAnimationFrame(draw); }
@@ -90,6 +106,16 @@
       ctx.lineWidth=highlight && selected===i ? 1.8 : 0.65;
       ctx.stroke();
     }
+    if (ready && poleOverlay) poleOverlay.draw(ctx,width,height);
+    if (activeDirection && ready) {
+      ctx.save();ctx.strokeStyle='#176d78';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.arc(width/2,height/2,7,0,Math.PI*2);
+      ctx.moveTo(width/2-13,height/2);ctx.lineTo(width/2-9,height/2);
+      ctx.moveTo(width/2+9,height/2);ctx.lineTo(width/2+13,height/2);
+      ctx.moveTo(width/2,height/2-13);ctx.lineTo(width/2,height/2-9);
+      ctx.moveTo(width/2,height/2+9);ctx.lineTo(width/2,height/2+13);
+      ctx.stroke();ctx.restore();
+    }
     if (spinning && !document.hidden) schedule();
   }
   function resize() {
@@ -120,7 +146,9 @@
     return data.faces.reduce((best,f,i) => rotate(f.normal)[2]>rotate(data.faces[best].normal)[2]?i:best,0);
   }
   function setModel(next) {
+    if (poleUI) poleUI.close();
     model=next;
+    if (poleOverlay) poleOverlay.update(model,edition);
     document.querySelectorAll('[data-model]').forEach(b => b.setAttribute('aria-pressed',String(b.dataset.model===model)));
     const name=model==='FCC'?'面心立方':'体心立方';
     $('model-tag').replaceChildren(document.createTextNode(model+' '));
@@ -128,7 +156,7 @@
     document.querySelectorAll('[data-edition]').forEach(b => b.setAttribute('aria-pressed',String(b.dataset.edition===edition)));
     $('edition-tag').textContent=edition==='teaching'?'低指数简明版':'Austin P. Day 原图版';
     $('legend-block').hidden=edition==='day';
-    $('download-block').hidden=edition==='day';
+    $('download-block').hidden=false;$('source-links').hidden=edition==='day';
     $('legend').replaceChildren();
     for (const line of data.legends[model]) {
       const item=document.createElement('span');item.className='legend-item';
@@ -145,10 +173,18 @@
     $('spin').setAttribute('aria-pressed',String(value));$('spin').textContent=value?'停止旋转':'自动旋转';schedule();
   }
   function setView(direction) {
-    const from=norm(direction),to=[0,0,1],axis=cross(from,to),angle=Math.acos(Math.max(-1,Math.min(1,dot(from,to))));
-    q=angle<0.00001?[0,0,0,1]:Math.PI-angle<0.00001?quat([1,0,0],Math.PI):quat(norm(axis),angle);
-    uprightFront();setSpin(false);selectFace(frontFace());schedule();
-    document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed',String(b.dataset.view===direction.join(''))));
+    if (poleUI) poleUI.close();
+    const reduced=directions.reduce(direction);
+    q=directions.align(reduced);
+    uprightFront();setSpin(false);
+    activeDirection=direction.slice();
+    $('direction-input').value=direction.join(' ');
+    $('direction-input').removeAttribute('aria-invalid');
+    $('direction-error').hidden=true;
+    const original=directions.label(direction),simple=directions.label(reduced);
+    $('direction-status').textContent=`当前观察 ${simple} · 已对准中心`+(original!==simple?`（${original} 与 ${simple} 同向）`:'');
+    selectFace(frontFace());schedule();
+    document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===direction.join(''))));
   }
   function uprightFront() {
     const face=data.faces[frontFace()];
@@ -156,7 +192,11 @@
     const right=rotate(add(mul(face.u,direction[0]),mul(face.v,direction[1])));
     q=compose(quat([0,0,1],-Math.atan2(right[1],right[0])),q);
   }
-  function clearPreset() {document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed','false'));}
+  function clearPreset() {
+    activeDirection=null;
+    $('direction-status').textContent='自由视角 · 输入晶向可精确定位';
+    document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed','false'));
+  }
   function reset() { q=home();uprightFront();setSpin(false);setZoom(1);selectFace(frontFace());clearPreset(); }
   document.querySelectorAll('[data-edition]').forEach(b => b.addEventListener('click',() => {
     edition=b.dataset.edition;
@@ -164,6 +204,11 @@
   }));
   document.querySelectorAll('[data-model]').forEach(b => b.addEventListener('click',() => setModel(b.dataset.model)));
   document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click',() => setView(b.dataset.view.split('').map(Number))));
+  $('direction-form').addEventListener('submit',e=>{
+    e.preventDefault();
+    try {setView(directions.parse($('direction-input').value).input);}
+    catch(error) {$('direction-error').textContent=error.message;$('direction-error').hidden=false;$('direction-input').setAttribute('aria-invalid','true');}
+  });
   $('zoom').addEventListener('input',e => setZoom(Number(e.target.value)/100));
   $('zoom-out').addEventListener('click',() => setZoom(zoom-0.15));
   $('zoom-in').addEventListener('click',() => setZoom(zoom+0.15));
@@ -174,11 +219,14 @@
   $('face-picker').addEventListener('change',e => setView(data.faces[Number(e.target.value)].hkl));
   $('retry').addEventListener('click',() => loadCurrent());
   function currentViewUrl(page) {
-    const url=new URL(location.protocol==='file:'?'https://abigalelu.github.io/kikuchi-sphere-interactive/index-drawings.html':location.href);url.hash='';url.search='';
+    const url=new URL(location.protocol==='file:'?'https://yoker3955-a11y.github.io/kikuchi-sphere-interactive/index-drawings.html':location.href);url.hash='';url.search='';
     if(page) url.pathname=url.pathname.replace(/[^/]*$/,page);
     url.searchParams.set('edition',edition);url.searchParams.set('crystal',model);
     url.searchParams.set('q',q.map(v=>v.toFixed(6)).join(','));url.searchParams.set('zoom',String(Math.round(zoom*100)));
     if (selected!==null) url.searchParams.set('face',String(selected));
+    if (activeDirection) url.searchParams.set('uvw',activeDirection.join(','));
+    if(poleOverlay.serialize())url.searchParams.set('poles',poleOverlay.serialize());
+    if(!$('pole-show-labels').checked)url.searchParams.set('labels','0');
     return url;
   }
   $('render-mode-link').addEventListener('click',() => {setSpin(false);$('render-mode-link').href=currentViewUrl('index-lite.html').href;});
@@ -197,17 +245,30 @@
     pointers.set(e.pointerId,local(e));
     if (pointers.size===1) {gestureStart=local(e);dragged=false;pinched=false;}
     else {pinched=true;dragged=true;}
-    setSpin(false);clearPreset();
+    setSpin(false);
   });
   canvas.addEventListener('pointermove',e => {
-    if (!pointers.has(e.pointerId)) return;
+    if (!pointers.has(e.pointerId)) {if(poleOverlay&&ready)poleOverlay.hover(local(e));return;}
+    if(poleOverlay)poleOverlay.hover(null);
     const old=pointers.get(e.pointerId),now=local(e),before=pointers.size===2?separation():0;
     pointers.set(e.pointerId,now);
     if (pointers.size===2) { if (before>1) setZoom(zoom*separation()/before);return; }
     const delta=sub(now,old);
     if (gestureStart && Math.hypot(...sub(now,gestureStart))>4) dragged=true;
-    if (dragged) {q=compose(compose(quat([1,0,0],delta[1]*0.007),quat([0,1,0],delta[0]*0.007)),q);schedule();}
+    if (dragged) {clearPreset();q=compose(compose(quat([1,0,0],delta[1]*0.007),quat([0,1,0],delta[0]*0.007)),q);schedule();}
   });
+  canvas.addEventListener('pointerleave',()=>{if(poleOverlay)poleOverlay.hover(null);});
+  function inspectPole(item,point,exactPole=null) {
+    const face=item.face,o=project(rotate(face.origin)),u=rotate(face.u),v=rotate(face.v);
+    const pick=window.KikuchiPole.hit(point,o,[u[0]*scale,-u[1]*scale],[v[0]*scale,-v[1]*scale],face);
+    if (!pick) return;
+    if(exactPole){pick.candidate={indices:exactPole.indices,angle:0};pick.exact=true;pick.planes=exactPole.planes;}
+    const index=item.i;
+    selectFace(index,true);
+    if (!poleUI) poleUI=window.KikuchiPole.create(setView);
+    const reading=edition==='day'?face.textDirections[model]:[1,0];
+    poleUI.open(pick,[textures[textureKey()][index].width,textures[textureKey()][index].height],reading,target=>target.drawImage(textures[textureKey()][index],0,0),'原分辨率图纸已载入');
+  }
   function release(e) {
     if (!pointers.has(e.pointerId)) return;
     if (e.type==='pointerup' && !dragged && !pinched && ready) {
@@ -219,7 +280,7 @@
           if ((a[1]>p[1])!==(b[1]>p[1]) && p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0]) inside=!inside;
         }return inside;
       });
-      if (hit) selectFace(hit.i,true);
+      if (hit) {if(!poleOverlay.select(p))selectFace(hit.i,true);}
     }
     pointers.delete(e.pointerId);
     if (!pointers.size) gestureStart=null;
@@ -262,5 +323,9 @@
   }
   if (!restoredOrientation) uprightFront();
   if (/^\d+$/.test(params.get('face') || '') && Number(params.get('face'))<data.faces.length) selected=Number(params.get('face'));
-  setZoom(zoom);setModel(model);resize();
+  if (params.has('uvw')) {
+    try {setView(directions.parse(params.get('uvw')).input);}
+    catch(error) {$('direction-error').textContent='链接晶向无效：'+error.message;$('direction-error').hidden=false;}
+  }
+  setZoom(zoom);setModel(model);poleOverlay.restore(params.get('poles'));resize();
 })();

@@ -51,3 +51,51 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 294px;min-height:calc(100s
 
 .usage-stats{margin:16px 0 0;font-size:11px;line-height:1.9;color:var(--muted);font-variant-numeric:tabular-nums}
 .usage-stats>span{display:inline-block}
+
+/* Arbitrary cubic direction controls. */
+.views { flex-wrap: wrap; }
+#direction-form { margin-top: 14px; }
+#direction-form label { display:block; margin-bottom:7px; font-size:13px; }
+.direction-entry { display:flex; gap:8px; }
+.direction-entry input { min-width:0; width:100%; flex:1; padding:10px; border:1px solid #a9bfc2; border-radius:8px; font:inherit; }
+.direction-entry button { flex-shrink:0; padding:10px; border:1px solid #176d78; border-radius:8px; background:#176d78; color:white; font:inherit; cursor:pointer; }
+.direction-entry input:focus-visible { outline:2px solid #176d78; outline-offset:2px; }
+.direction-entry input[aria-invalid="true"] { border-color:#b42318; }
+.direction-error { color:#b42318; font-size:13px; }
+.direction-status { margin:10px 0 0; padding:9px; background:#edf6f5; border-radius:8px; color:#155e67; font-size:13px; line-height:1.6; }
+.teaching-app .views { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); } @media(max-width:760px) { .teaching-app .view-block { grid-column:1/-1; grid-row:3; } .teaching-app .face-block { grid-row:2; } }
+
+#pole-dialog { width:min(760px,94vw); max-height:92dvh; padding:20px; border:1px solid #b3cccb; border-radius:14px; color:#183b42; box-sizing:border-box; overflow:auto; }
+#pole-dialog::backdrop { background:#102a35aa; }
+.pole-header,.pole-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.pole-header { justify-content:space-between; }
+.pole-header h2 { margin:0; font-size:20px; }
+#pole-dialog button { padding:9px 14px; border:1px solid #b3cccb; background:#f1f8f7; border-radius:7px; color:#155e67; cursor:pointer; }
+#pole-dialog button:focus-visible { outline:2px solid #176d78; outline-offset:2px; }
+#pole-dialog button:disabled { opacity:.4; }
+#pole-dialog button[hidden] { display:none; }
+#pole-canvas { display:block; width:min(100%,55dvh); height:auto; aspect-ratio:1; margin:12px auto; border:1px solid #d6e2db; background:white; }
+#pole-info,#pole-quality { font-size:14px; line-height:1.6; }
+@media(max-width:480px) { #pole-dialog { padding:14px; } .pole-header h2 { font-size:17px; } .pole-actions { gap:8px; } }
+
+.pole-controls { margin-top:16px; border-top:1px solid #d6e2db; padding-top:14px; }
+.pole-toggle { display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer; }
+.pole-toggle input { accent-color:#176d78; width:17px; height:17px; }
+.pole-toolbar,#pole-pins { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.pole-toolbar button,#pole-pins button { padding:7px 9px; border:1px solid #b3cccb; border-radius:6px; background:#f1f8f7; color:#155e67; cursor:pointer; font-size:12px; }
+#pole-pins button { color:#a52620; background:#fff3ea; }
+.pole-toolbar button:disabled { opacity:.45; cursor:default; }
+
+#planar-open { width:100%; border:0; cursor:pointer; text-align:center; font:inherit; }
+#source-links { margin-top:12px; }
+#planar-dialog { width:min(960px,96vw); max-height:94dvh; padding:20px; border:1px solid #b3cccb; border-radius:14px; overflow:auto; color:#183b42; box-sizing:border-box; }
+#planar-dialog::backdrop { background:#102a35aa; }
+#planar-preview { display:block; width:min(100%,650px); height:auto; margin:14px auto; background:white; border:1px solid #d6e2db; }
+.planar-options,.planar-downloads { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:14px; }
+.planar-options { font-size:14px; }
+#planar-dialog button,#planar-dialog select,.planar-downloads a { border:1px solid #a8c4c4; border-radius:6px; padding:9px 12px; background:#f1f8f7; color:#155e67; font:inherit; text-decoration:none; cursor:pointer; }
+#planar-dialog button:focus-visible,#planar-dialog a:focus-visible,#planar-dialog select:focus-visible { outline:2px solid #176d78; outline-offset:2px; }
+#planar-status { font-size:13px; }
+@media(max-width:480px) { #planar-dialog { padding:12px; } .planar-downloads { font-size:13px; } }
+
+#planar-open { display:block; background:#176d78; color:white; padding:12px; border-radius:7px; font-size:14px; font-weight:600; }

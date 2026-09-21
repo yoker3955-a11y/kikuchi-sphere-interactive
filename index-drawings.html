@@ -12,12 +12,15 @@
   <meta property="og:description" content="从低指数简明版开始，在同一视角对照 FCC / BCC 与 Austin P. Day 原图。免费在线交互工具。">
   <meta property="og:type" content="website">
   <title>菊池球 · FCC / BCC 交互模型</title>
-  <link rel="stylesheet" href="style.css?v=20260909-stats1">
+  <link rel="stylesheet" href="style.css?v=20260922-planar1">
   <script src="model-drawings.js" defer></script>
   <script src="model-lite.js" defer></script>
   <script src="preview.js?v=1" defer></script>
-  <script src="viewer-drawings.js?v=20260909-wording1" defer></script>
-  <script src="usage-stats.js?v=20260911-retry1" defer></script>
+  <script src="direction.js?v=20260922" defer></script>
+  <script src="pole-picker.js?v=20260922-planar1" defer></script>
+  <script src="pole-catalog.js?v=20260922-planar1" defer></script>
+  <script src="planar-export.js?v=20260922-planar1" defer></script>
+  <script src="viewer-drawings.js?v=20260922-planar1" defer></script>
 </head>
 <body class="teaching-app">
   <a class="skip-link" href="#controls">跳到模型控制</a>
@@ -28,10 +31,10 @@
   <main>
     <section class="stage" aria-label="菊池球三维观察区">
       <div class="stage-top"><div><span class="model-tag" id="model-tag">FCC <span>面心立方</span></span></div><span class="edition-tag" id="edition-tag">低指数简明版</span></div>
-      <canvas id="viewer" tabindex="0" aria-label="菊池球模型。拖动或按方向键旋转，滚轮或加减键缩放，点击表面查看图案，Home 键复位。也可在模型控制中选择晶向。" aria-busy="true"></canvas>
+      <canvas id="viewer" tabindex="0" aria-label="菊池球模型。拖动或按方向键旋转，滚轮或加减键缩放，点击线条交点标注菊池极坐标，Home 键复位。也可在模型控制中选择晶向。" aria-busy="true"></canvas>
       <div id="loading" class="loading" role="status"><span id="loading-message">正在载入低指数简明版…</span><button id="retry" type="button" hidden>重新载入</button></div>
       <noscript><p class="loading">请启用 JavaScript 查看交互模型。也可在下方下载 A4 交互图纸。</p></noscript>
-      <div class="stage-bottom"><span>拖动旋转 <i>·</i> 双指 / 滚轮缩放 <i>·</i> 点选单面</span><button id="reset" class="reset" type="button" title="快捷键 Home">↺ <span>复位视图</span></button></div>
+      <div class="stage-bottom"><span>拖动旋转 <i>·</i> 双指 / 滚轮缩放 <i>·</i> 点击交点标注坐标</span><button id="reset" class="reset" type="button" title="快捷键 Home">↺ <span>复位视图</span></button></div>
     </section>
     <aside id="controls" class="panel" aria-label="模型观察控制" tabindex="-1">
       <section class="control-block edition-block">
@@ -48,25 +51,60 @@
       </section>
       <section class="control-block view-block">
         <div class="row"><h2>沿晶向观察</h2><button type="button" id="spin" class="text-button" aria-pressed="false">自动旋转</button></div>
-        <div class="views" role="group" aria-label="观察方向"><button type="button" data-view="001" aria-pressed="false">[001]</button><button type="button" data-view="110" aria-pressed="false">[110]</button><button type="button" data-view="111" aria-pressed="false">[111]</button></div>
+        <div class="views" role="group" aria-label="观察方向"><button type="button" data-view="001" aria-pressed="false">[001]</button><button type="button" data-view="110" aria-pressed="false">[110]</button><button type="button" data-view="111" aria-pressed="false">[111]</button><button type="button" data-view="112" aria-pressed="false">[112]</button><button type="button" data-view="330" aria-pressed="false">[330]</button><button type="button" data-view="113" aria-pressed="false">[113]</button></div>
+        <form id="direction-form" novalidate>
+          <label for="direction-input">任意晶向 [uvw]</label>
+          <div class="direction-entry"><input id="direction-input" type="text" placeholder="例如 112 或 -1 1 3" autocomplete="off" spellcheck="false" aria-describedby="direction-help direction-error"><button type="submit">转到晶向</button></div>
+          <p id="direction-help" class="detail">三个整数，支持负数；多位数请用空格分隔。适用于当前立方晶体模型。</p>
+          <p id="direction-error" class="direction-error" role="alert" hidden></p>
+        </form>
+        <p id="direction-status" class="direction-status" role="status">自由视角 · 输入晶向可精确定位</p>
+        <div class="pole-controls">
+          <label class="pole-toggle"><input id="pole-show-labels" type="checkbox" checked> 显示其他交点坐标</label>
+          <p id="pole-selection" class="direction-status" role="status">点击线条交点，在球面保留晶向坐标。</p>
+          <p id="pole-equations" class="detail"></p>
+          <div id="pole-pins" aria-label="已标注的菊池极"></div>
+          <div class="pole-toolbar"><button id="pole-mark-input" type="button">标注输入晶向</button><button id="pole-selected-align" type="button" disabled>沿选中极观察</button><button id="pole-selected-zoom" type="button" disabled>放大选中极</button><button id="pole-clear-pins" type="button">清除标注</button></div>
+          <p id="pole-catalog-note" class="detail"></p>
+        </div>
         <div class="row zoom-row"><label for="zoom">缩放</label><output for="zoom" id="zoom-value">100%</output></div>
         <div class="zoom-control"><button id="zoom-out" aria-label="缩小" type="button">−</button><input id="zoom" type="range" min="55" max="260" step="1" value="100" aria-label="模型缩放比例"><button id="zoom-in" aria-label="放大" type="button">+</button></div>
       </section>
       <section class="control-block face-block">
-        <div class="row"><h2>局部图案</h2><span id="face-label" class="face-label">—</span></div>
+        <div class="row"><h2>图纸面预览</h2><span id="face-label" class="face-label">—</span></div>
         <div class="face-preview"><canvas id="face-preview" width="512" height="512" role="img" aria-label="所选晶向的图纸局部"></canvas></div>
+        <p class="detail">此处展示整张图纸面；面中心标签不一定是当前观察晶向。目标晶向位于主模型中心标记处，新增交点坐标显示在主模型上，原图像素保持不变。</p>
         <label for="face-picker" hidden>选择晶向并转到对应面</label><select id="face-picker" disabled hidden><option>正在载入晶向…</option></select>
         <p class="detail" id="face-description">点选模型表面，查看对应的局部图案。</p>
       </section>
       <details id="legend-block" class="legend-block"><summary>简明版线条图例 <span>晶面族</span></summary><div id="legend" class="legend"></div><p class="detail">不同晶面族以颜色和线型区分。<br>晶向以 [uvw] 标注；数字上方的横杠表示该指数为负。</p></details>
       <section id="download-block" class="control-block download-block" aria-label="图纸与下载">
-        <h2>图纸下载</h2><div id="source-links"><a class="download-link" href="source/reference.pdf" download="Kikuchi_FCC_BCC_LowIndex_A4.pdf" data-goatcounter-click="download-a4-pdf" data-goatcounter-title="A4 Kikuchi drawing PDF download" data-goatcounter-no-session="1">下载 A4 交互图纸 · PDF</a></div>
+        <h2>图纸下载</h2>
+        <button id="planar-open" class="download-link" type="button">生成当前晶向二维图纸</button>
+        <p class="detail">以当前已对准的 [uvw] 为中心，预览平面菊池线图并下载 PDF、SVG 或 PNG。视场单独设置，不受球体缩放影响。</p>
+        <p id="export-status" role="status" class="detail"></p>
+        <div id="source-links"><a class="download-link" href="source/reference.pdf" download="Kikuchi_FCC_BCC_LowIndex_A4.pdf" data-goatcounter-click="download-a4-pdf" data-goatcounter-title="A4 Kikuchi drawing PDF download" data-goatcounter-no-session="1">下载整球展开图 · PDF</a></div>
       </section>
       <div class="share-block"><button id="share" type="button">复制当前视图链接</button><span id="share-status" role="status"></span><input id="share-fallback" aria-label="当前视图链接，可手动复制" readonly hidden></div>
       <p class="render-note">当前为全清晰视图，所有面保留原分辨率。<a href="index-lite.html" id="render-mode-link">切换轻量视图 ↗</a></p>
       <p class="panel-credit">原始图纸与布局：<a href="#credits">Austin P. Day</a><br>交互改编与数字模型 · AI 辅助：Codex Astra</p>
     </aside>
   </main>
+  <dialog id="planar-dialog" aria-labelledby="planar-title">
+    <div class="pole-header"><h2 id="planar-title">二维菊池线图</h2><button id="planar-close" type="button" autofocus>关闭二维预览</button></div>
+    <div class="planar-options"><label for="planar-angle">水平 / 垂直半视场角</label><select id="planar-angle"><option value="15">±15°</option><option value="25">±25°</option><option value="35" selected>±35°</option><option value="45">±45°</option><option value="60">±60°</option></select><label><input id="planar-labels" type="checkbox" checked> 显示其他交点坐标</label></div>
+    <p class="detail">中心投影（Gnomonic）：球面中心线投到平面成为直线。使用简明版线族，保留视场内已选极；不包含带宽和强度模拟。</p>
+    <div class="planar-downloads"><a id="planar-pdf" download>下载 PDF（A4 矢量）</a><a id="planar-svg" download>下载 SVG（可编辑矢量）</a><button id="planar-png" type="button">下载 PNG（高清）</button></div>
+    <p id="planar-status" role="status"></p>
+    <img id="planar-preview" alt="以指定晶向为中心的二维菊池中心线图预览">
+  </dialog>
+  <dialog id="pole-dialog" aria-labelledby="pole-title" aria-describedby="pole-info">
+    <div class="pole-header"><h2 id="pole-title">点击位置 · 局部放大</h2><button id="pole-close" type="button" autofocus aria-label="关闭局部放大">关闭 ×</button></div>
+    <p id="pole-info"></p>
+    <canvas id="pole-canvas" width="1000" height="1000" role="img" aria-label="点击位置的放大图"></canvas>
+    <div class="pole-actions"><button id="pole-less" type="button" aria-label="减小局部放大">−</button><output id="pole-zoom-value">3×</output><button id="pole-more" type="button" aria-label="增加局部放大">＋</button><button id="pole-align" type="button">沿此候选晶向观察</button></div>
+    <p id="pole-quality" role="status"></p><p class="detail">圆圈中心是实际点击位置。放大清晰度受原图分辨率限制；图纸面边缘外为留白。按 Esc 可关闭。</p>
+  </dialog>
   <footer id="credits" class="credits-section" aria-labelledby="credits-title">
     <div class="section-intro"><p class="eyebrow">站在分享者的肩膀上</p><h2 id="credits-title">来源、改编与感谢</h2></div>
     <div class="credit-grid">
@@ -76,8 +114,6 @@
       <article><p class="credit-role">交互改编与数字模型 · AI 辅助</p><h3>Codex Astra</h3><p>Codex Astra（OpenAI Codex，AI 辅助工具）协助本项目的低指数中心线重绘、标签与打印排版、多面体建模及网页实现。</p></article>
     </div>
     <div class="license-note"><p>原始图纸及基于其改编的图纸、贴图遵循 <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/" target="_blank" rel="license noopener">CC BY-NC-SA 3.0</a>：署名、非商业性使用、相同方式共享。转载时请保留作者、来源链接、许可与改编说明。致谢不代表作者、OpenAI 或 Thermo Fisher Scientific 对本项目的官方背书。</p><a href="https://github.com/AbigaleLu/kikuchi-sphere-interactive/blob/main/ATTRIBUTION.md" target="_blank" rel="noopener">完整来源说明 ↗</a><a href="https://github.com/AbigaleLu/kikuchi-sphere-interactive/issues" target="_blank" rel="noopener">反馈问题 ↗</a><a href="https://github.com/AbigaleLu/kikuchi-sphere-interactive" target="_blank" rel="noopener">项目源码 ↗</a></div>
-    <p class="usage-stats" id="usage-stats" hidden><span>轻量访问 <span data-usage-path="/kikuchi/lite">0</span></span> · <span>全清晰访问 <span data-usage-path="/kikuchi/full">0</span></span> · <span>图纸下载 <span data-usage-path="download-a4-pdf">0</span></span></p>
   </footer>
-  <script data-goatcounter="https://abigalelu.goatcounter.com/count" data-goatcounter-settings='{"path":"/kikuchi/full"}' async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
