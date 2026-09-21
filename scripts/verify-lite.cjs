@@ -8,13 +8,13 @@ function harness(options={}){
  let id=0,aborted=0,closed=0,draws=0,clipboard='';
  const bounds={left:0,top:0,width:options.width||390,height:options.height||480};
  const previewTransforms=[];
- const surfaces={viewer:createCanvas(bounds.width,bounds.height),'face-preview':createCanvas(512,512)};
+ const surfaces={viewer:createCanvas(bounds.width,bounds.height),'face-preview':createCanvas(512,512),'pole-canvas':createCanvas(1000,1000)};
  const faults=new Set();
  class Element{
   constructor(){this.handlers={};this.children=[];this.dataset={};this.hidden=false;}
   addEventListener(k,fn){this.handlers[k]=fn;}setAttribute(k,v){this[k]=v;}removeAttribute(k){delete this[k];}
   append(...items){this.children.push(...items);}replaceChildren(...items){this.children=items;}
-  getBoundingClientRect(){return bounds;}focus(){}select(){}setPointerCapture(){}
+  getBoundingClientRect(){return bounds;}focus(){}select(){}setPointerCapture(){}showModal(){this.open=true;}close(){this.open=false;}
  }
  const el=id=>elements[id]||(elements[id]=new Element());
  for(const [id,surface]of Object.entries(surfaces)){
@@ -47,7 +47,7 @@ function harness(options={}){
   createImageBitmap:options.htmlFallback?undefined:async(blob)=>new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(track(image,blob.file));image.onerror=reject;image.src=fs.readFileSync(path.join(root,blob.file));})
  };
  vm.createContext(sandbox);
- for(const file of ['model-drawings.js','model-lite.js','texture-loader-lite.js','preview.js','viewer-lite.js']){
+ for(const file of ['model-drawings.js','model-lite.js','texture-loader-lite.js','preview.js','direction.js','pole-picker.js','pole-catalog.js','planar-export.js','viewer-lite.js']){
   let source=fs.readFileSync(path.join(root,file),'utf8');
   if(file==='viewer-lite.js')source=source.replace(/\}\)\(\);\s*$/,'window.probe={get q(){return q},get zoom(){return zoom},get key(){return textureKey()},get ready(){return ready},get selected(){return selected},get faces(){return data.faces},get pointers(){return pointers},rotate,frontFace,drawPreview};})();');
   vm.runInContext(source,sandbox);
