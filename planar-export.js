@@ -97,9 +97,9 @@
       const spotBoxes=[];
       for(const spot of [{hkl:[0,0,0],x:0,y:0},...reflections]){
         const [x,y]=xy([spot.x,spot.y]);
-        shapes.push({type:'circle',x,y,r:spot.gInvNm?4:5,fill:'#8b238d'});
-        const value='('+spot.hkl.join(' ')+')',w=value.length*7;
-        if(x+w+10<left+side&&y-14>top&&!spotBoxes.some(b=>Math.abs(b[1]-(y-14))<14&&x+7<b[0]+b[2]&&x+w+7>b[0])){text(x+7,y-7,value,11,'#8b238d');spotBoxes.push([x+7,y-14,w]);}
+        shapes.push({type:'circle',x,y,r:spot.gInvNm?8:10,fill:'#8b238d'});
+        const value='('+spot.hkl.join(' ')+')',w=value.length*10;
+        if(x+w+14<left+side&&y-24>top&&!spotBoxes.some(b=>Math.abs(b[1]-(y-24))<22&&x+12<b[0]+b[2]&&x+w+12>b[0])){text(x+12,y-12,value,16,'#8b238d',true);spotBoxes.push([x+12,y-24,w]);}
       }
     }
     line(left,top,left+side,top,'#526d73',1);line(left+side,top,left+side,top+side,'#526d73',1);
