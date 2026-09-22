@@ -50,6 +50,7 @@
     const $=id=>document.getElementById(id),cache={};
     let catalogue=[],screen=[],pins=[],selected=null,hovered=null,edition='teaching';
     function status(p){
+      if(p && typeof window.dispatchEvent==='function') window.dispatchEvent(new CustomEvent('kikuchi-target',{detail:p.indices.slice()}));
       $('pole-selection').textContent=p?`菊池极 ${p.label} · ${p.planes.length} 条中心线相交`:'点击线条交点，在球面保留晶向坐标。';
       $('pole-equations').textContent=p?`相交晶面 ${p.planes.slice(0,2).map(x=>planeLabel(x.hkl)).join('、')}；均满足 hu + kv + lw = 0。`:'';
       $('pole-selected-align').disabled=!p;$('pole-selected-zoom').disabled=!p;
@@ -136,3 +137,4 @@
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   if(typeof window!=='undefined')window.KikuchiPoleCatalog=api;
 })();
+
