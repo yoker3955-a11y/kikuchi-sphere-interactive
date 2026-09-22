@@ -68,6 +68,14 @@
     onMagnify:p=>inspectPole({face:p.face,i:p.faceIndex},project(rotate(p.position)),p)
   });
 
+  // A navigation update changes the displayed crystal, never the stored stage state.
+  window.KikuchiStageView = value => {
+    if(model!=='FCC')setModel('FCC');
+    setSpin(false); q=norm(value); clearPreset();
+    $('direction-status').textContent='双倾导航姿态 · 拖动仅改变观察视角，打开导航恢复束向';
+    selectFace(frontFace()); schedule();
+  };
+
   window.KikuchiPlanar.attach(()=>{
     setSpin(false);
     return {model,legend:data.legends[model],faces:data.faces,
@@ -329,3 +337,4 @@
   }
   setZoom(zoom);setModel(model);poleOverlay.restore(params.get('poles'));resize();
 })();
+
