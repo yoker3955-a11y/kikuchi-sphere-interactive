@@ -19,10 +19,33 @@
     const p=[r[0]/r[2],r[1]/r[2]];
     return p.every(n=>Math.abs(n)<=limit+1e-9)?p:null;
   }
-  function make({model,legend,faces,basis,direction,pins=[],halfAngle=35,labels=true}){
-    if(!Number.isFinite(halfAngle)||halfAngle<5||halfAngle>75)throw new Error('半视场角应为 5–75°。');
+  // Relativistic wavelength; nm, V, SI exact h/e/c and CODATA electron mass.
+  const wavelength=kv=>6.62607015e-34/Math.sqrt(2*9.1093837139e-31*1.602176634e-19*kv*1000*(1+1.602176634e-19*kv*1000/(2*9.1093837139e-31*299792458**2)))*1e9;
+  const siAllowed=([h,k,l])=>{
+    const parity=n=>((n%2)+2)%2;
+    return parity(h)===parity(k)&&parity(k)===parity(l)&&(parity(h)===1||(h+k+l)%4===0);
+  };
+  function siliconSpots(direction,basis,limit){
+    const a=.5431,lambda=wavelength(200),out=[];
+    for(let h=-8;h<=8;h++)for(let k=-8;k<=8;k++)for(let l=-8;l<=8;l++){
+      const hkl=[h,k,l],n=Math.hypot(h,k,l);
+      if(!n||h*direction[0]+k*direction[1]+l*direction[2]!==0||!siAllowed(hkl))continue;
+      const g=n/a,t=transform(hkl,basis),sin=lambda*g;
+      if(sin>=1)continue;
+      // Flat ZOLZ reciprocal plane approximation: transverse momentum lambda*g,
+      // outgoing longitudinal component chosen on the elastic Ewald sphere.
+      const z=Math.sqrt(1-sin*sin),x=lambda*t[0]/a/z,y=lambda*t[1]/a/z;
+      if(Math.abs(x)>limit||Math.abs(y)>limit)continue;
+      out.push({hkl,dNm:a/n,gInvNm:g,angleDeg:Math.asin(sin)*180/Math.PI,x,y});
+    }
+    return out.sort((a,b)=>a.gInvNm-b.gInvNm);
+  }
+  function make({model,legend,faces,basis,direction,pins=[],halfAngle=35,labels=true,spots=false}){
+    if(!Number.isFinite(halfAngle)||halfAngle<.25||halfAngle>75)throw new Error('半视场角应为 0.25–75°。');
     const indices=D.reduce(direction),label=D.label(indices),r=transform(indices,basis),length=Math.hypot(...r);
     if(r[2]<=0||Math.hypot(r[0],r[1])/length>1e-5)throw new Error('请先转到指定晶向，再生成二维图纸。');
+    spots=spots&&model==='FCC';
+    if(spots)legend=legend.map(entry=>entry.label.includes('200')?{...entry,label:entry.label.replace('200','400')}:entry);
     const limit=Math.tan(halfAngle*Math.PI/180),left=90,top=170,side=820;
     const xy=p=>[left+side/2+p[0]/limit*side/2,top+side/2-p[1]/limit*side/2];
     const shapes=[],lineRecords=[],poleRecords=[];
@@ -30,10 +53,10 @@
     const line=(x1,y1,x2,y2,color='#ddd',width=1,dash='')=>shapes.push({type:'line',x1,y1,x2,y2,color,width,dash});
     shapes.push({type:'rect',x:0,y:0,w:1000,h:1320,fill:'#ffffff'});
     text(90,62,'KIKUCHI CENTER-LINE MAP',27,'#155e67',true);
-    text(90,100,model+'  |  Zone axis '+label,25,'#172e38',true);
+    text(90,100,(spots?'Si diamond | 200 kV':model)+'  |  Zone axis '+label,25,'#172e38',true);
     text(90,132,`Gnomonic projection  |  Horizontal / vertical half-field: ${halfAngle} deg`,15);
     // Angular ticks describe rotations along the horizontal/vertical center axes.
-    const step=halfAngle<=20?5:10;
+    const step=halfAngle<=2?.5:halfAngle<=5?1:halfAngle<=20?5:10;
     for(let deg=-Math.floor(halfAngle/step)*step;deg<=halfAngle;deg+=step){
       const t=Math.tan(deg*Math.PI/180),[x,y]=xy([t,t]);
       line(x,top,x,top+side,'#e1e7e7',.7);line(left,y,left+side,y,'#e1e7e7',.7);
@@ -69,6 +92,16 @@
       shapes.push({type:'rect',x:box[0],y:box[1],w,h,fill:'#ffffff'});
       text(box[0]+5,box[1]+h-6,p.label,size,important?'#bd3329':'#183b42',important||central);
     }
+    const reflections=spots?siliconSpots(indices,basis,limit):[];
+    if(spots){
+      const spotBoxes=[];
+      for(const spot of [{hkl:[0,0,0],x:0,y:0},...reflections]){
+        const [x,y]=xy([spot.x,spot.y]);
+        shapes.push({type:'circle',x,y,r:spot.gInvNm?4:5,fill:'#8b238d'});
+        const value='('+spot.hkl.join(' ')+')',w=value.length*7;
+        if(x+w+10<left+side&&y-14>top&&!spotBoxes.some(b=>Math.abs(b[1]-(y-14))<14&&x+7<b[0]+b[2]&&x+w+7>b[0])){text(x+7,y-7,value,11,'#8b238d');spotBoxes.push([x+7,y-14,w]);}
+      }
+    }
     line(left,top,left+side,top,'#526d73',1);line(left+side,top,left+side,top+side,'#526d73',1);
     line(left+side,top+side,left,top+side,'#526d73',1);line(left,top+side,left,top,'#526d73',1);
     const [cx,cy]=xy([0,0]);line(cx-7,cy,cx+7,cy,'#111111',1.3);line(cx,cy-7,cx,cy+7,'#111111',1.3);
@@ -79,11 +112,11 @@
     text(90,1155,`Center [uvw]: ${label}   |   ${lineRecords.length} lines   |   ${poleRecords.length} poles in field`,14);
     text(90,1180,`Screen right (crystal XYZ): ${fmt(right)}`,13);
     text(90,1202,`Screen up (crystal XYZ):    ${fmt(up)}`,13);
-    text(90,1234,'Geometric center lines only; no band width or intensity simulation.',13);
-    text(90,1256,'Families: teaching FCC/BCC map. Ticks: angle from center along each axis (deg).',12);
+    text(90,1234,spots?'Si a=0.5431 nm | 200 kV | wavelength='+wavelength(200).toFixed(7)+' nm':'Geometric center lines only; no band width or intensity simulation.',13);
+    text(90,1256,spots?'ZOLZ approximation; |h,k,l|<=8. Equal spot sizes; no intensity / dynamical simulation.':'Families: teaching FCC/BCC map. Ticks: angle from center along each axis (deg).',12);
     text(90,1280,'Kikuchi Sphere project | Original layout: Austin P. Day | CC BY-NC-SA 3.0',11);
-    const metadata={model,direction:indices,basis,forward,halfAngle,projection:'gnomonic',scope:'teaching-center-line-families',lines:lineRecords,poles:poleRecords,pinsOutside:pins.filter(id=>!poleRecords.some(p=>p.indices.join(',')===id)),visiblePins};
-    return {shapes,metadata,name:`Kikuchi_${model}_${indices.join('_')}_half${halfAngle}deg`};
+    const metadata={reflections,material:spots?'Si':null,voltageKV:spots?200:null,latticeNm:spots?.5431:null,wavelengthNm:spots?wavelength(200):null,model,direction:indices,basis,forward,halfAngle,projection:'gnomonic',scope:'teaching-center-line-families',lines:lineRecords,poles:poleRecords,pinsOutside:pins.filter(id=>!poleRecords.some(p=>p.indices.join(',')===id)),visiblePins};
+    return {shapes,metadata,name:`Kikuchi_${spots?'Si200kV':model}_${indices.join('_')}_half${halfAngle}deg`};
   }
   function svg(scene){
     const elements=scene.shapes.map(s=>{
@@ -123,18 +156,31 @@
     const $=id=>document.getElementById(id),dialog=$('planar-dialog');let state=null,scene=null,urls=[];
     function refresh(){
       try{
-        scene=make({...state,halfAngle:Number($('planar-angle').value),labels:$('planar-labels').checked});
+        scene=make({...state,halfAngle:Number($('planar-angle').value),labels:$('planar-labels').checked,spots:$('planar-spots')?.checked});
         urls.forEach(url=>URL.revokeObjectURL(url));urls=[];
         const link=(bytes,type)=>{const url=URL.createObjectURL(new Blob([bytes],{type}));urls.push(url);return url;};
         const svgUrl=link(svg(scene),'image/svg+xml');$('planar-preview').src=svgUrl;
         $('planar-svg').href=svgUrl;$('planar-svg').download=scene.name+'.svg';
         $('planar-pdf').href=link(pdf(scene),'application/pdf');$('planar-pdf').download=scene.name+'.pdf';
-        $('planar-title').textContent=state.model+' '+D.label(scene.metadata.direction)+' 二维菊池线图';
+        $('planar-title').textContent=(scene.metadata.material?'Si · 200 kV':state.model)+' '+D.label(scene.metadata.direction)+' 二维菊池线图';
         $('planar-status').textContent=`${scene.metadata.lines.length} 条中心线，视场内 ${scene.metadata.poles.length} 个交点。`+(scene.metadata.pinsOutside.length?` ${scene.metadata.pinsOutside.length} 个已选极在视场外，可增大视场。`:'');
+        if($('planar-reflections')){
+          const select=$('planar-reflections');select.replaceChildren();
+          for(const spot of scene.metadata.reflections){const option=document.createElement('option');option.value=spot.hkl.join(',');option.textContent='('+spot.hkl.join(' ')+')';select.appendChild(option);}
+          $('planar-spot-controls').hidden=!scene.metadata.material;
+          showSpot();
+          if(scene.metadata.material)$('planar-status').textContent+=` ${scene.metadata.reflections.length} 个 Si 允许反射（不含 000）；紫色为衍射斑点。`;
+        }
       }catch(error){$('planar-status').textContent=error.message;}
     }
+    function showSpot(){
+      const spot=scene?.metadata.reflections.find(s=>s.hkl.join(',')===$('planar-reflections').value);
+      $('planar-spot-info').textContent=spot?`(${spot.hkl.join(' ')})：d = ${spot.dNm.toFixed(5)} nm；|g| = ${spot.gInvNm.toFixed(4)} nm⁻¹；散射角 ≈ ${spot.angleDeg.toFixed(4)}°。`:'当前视场和指数范围内无允许的非零反射，可增大视场或选择较低指数晶向。';
+    }
+    $('planar-reflections')?.addEventListener('change',showSpot);
+    $('planar-spots')?.addEventListener('change',()=>{if($('planar-spots').checked)$('planar-angle').value='2';refresh();});
     $('planar-open').addEventListener('click',()=>{
-      try{state=getState();if(!state.direction)throw new Error('请先输入晶向并点击“转到晶向”，再生成二维图纸。');refresh();dialog.showModal();$('export-status').textContent='';}
+      try{state=getState();if(!state.direction)throw new Error('请先输入晶向并点击“转到晶向”，再生成二维图纸。');if($('planar-spots')){$('planar-spots').disabled=state.model!=='FCC';if(state.model!=='FCC')$('planar-spots').checked=false;}refresh();dialog.showModal();$('export-status').textContent='';}
       catch(error){$('export-status').textContent=error.message;}
     });
     $('planar-close').addEventListener('click',()=>dialog.close());
@@ -154,7 +200,7 @@
       finally{if(url)URL.revokeObjectURL(url);button.disabled=false;}
     });
   }
-  const api={transform,clipLine,projectPole,make,svg,pdf,attach};
+  const api={wavelength,siAllowed,siliconSpots,transform,clipLine,projectPole,make,svg,pdf,attach};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   if(typeof window!=='undefined')window.KikuchiPlanar=api;
 })();
