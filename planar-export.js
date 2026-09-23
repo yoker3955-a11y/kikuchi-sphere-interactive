@@ -40,7 +40,12 @@
     }
     return out.sort((a,b)=>a.gInvNm-b.gInvNm);
   }
-  function make({model,legend,faces,basis,direction,pins=[],halfAngle=35,labels=true,spots=false}){
+  function extendedLegend(model,legend){
+    const extra=model==='FCC'?['{311}','{331}','{420}']:['{310}','{321}','{411}'];
+    return [...legend,...extra.filter(label=>!legend.some(e=>e.label===label)).map((label,i)=>({label,color:['#8b4d95','#ba602b','#3760a3'][i],dash:'4 3'}))];
+  }
+  function make({model,legend,faces,basis,direction,pins=[],halfAngle=35,labels=true,spots=false,extended=false}){
+    if(extended)legend=extendedLegend(model,legend);
     if(!Number.isFinite(halfAngle)||halfAngle<.25||halfAngle>75)throw new Error('半视场角应为 0.25–75°。');
     const indices=D.reduce(direction),label=D.label(indices),r=transform(indices,basis),length=Math.hypot(...r);
     if(r[2]<=0||Math.hypot(r[0],r[1])/length>1e-5)throw new Error('请先转到指定晶向，再生成二维图纸。');
@@ -113,10 +118,11 @@
     text(90,1180,`Screen right (crystal XYZ): ${fmt(right)}`,13);
     text(90,1202,`Screen up (crystal XYZ):    ${fmt(up)}`,13);
     text(90,1234,spots?'Si a=0.5431 nm | 200 kV | wavelength='+wavelength(200).toFixed(7)+' nm':'Geometric center lines only; no band width or intensity simulation.',13);
-    text(90,1256,spots?'ZOLZ approximation; |h,k,l|<=8. Equal spot sizes; no intensity / dynamical simulation.':'Families: teaching FCC/BCC map. Ticks: angle from center along each axis (deg).',12);
+    text(90,1256,spots?'ZOLZ approximation; |h,k,l|<=8. Equal spot sizes; no intensity / dynamical simulation.':extended?'Extended mathematical families; not a digitization of the Austin P. Day artwork.':'Families: teaching FCC/BCC map. Ticks: angle from center along each axis (deg).',12);
     text(90,1280,'Kikuchi Sphere project | Original layout: Austin P. Day | CC BY-NC-SA 3.0',11);
     const metadata={reflections,material:spots?'Si':null,voltageKV:spots?200:null,latticeNm:spots?.5431:null,wavelengthNm:spots?wavelength(200):null,model,direction:indices,basis,forward,halfAngle,projection:'gnomonic',scope:'teaching-center-line-families',lines:lineRecords,poles:poleRecords,pinsOutside:pins.filter(id=>!poleRecords.some(p=>p.indices.join(',')===id)),visiblePins};
-    return {shapes,metadata,name:`Kikuchi_${spots?'Si200kV':model}_${indices.join('_')}_half${halfAngle}deg`};
+    metadata.scope=extended?'extended-mathematical-families':metadata.scope;metadata.families=legend.map(e=>e.label);
+    return {shapes,metadata,name:`Kikuchi_${spots?'Si200kV':model}_${indices.join('_')}_half${halfAngle}deg${extended?'_extended':''}`};
   }
   function svg(scene){
     const elements=scene.shapes.map(s=>{
@@ -152,11 +158,11 @@
     out+=`trailer\n<< /Size ${objects.length+1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
     return new TextEncoder().encode(out);
   }
-  function attach(getState){
+  function attach(getState,setDirection){
     const $=id=>document.getElementById(id),dialog=$('planar-dialog');let state=null,scene=null,urls=[];
     function refresh(){
       try{
-        scene=make({...state,halfAngle:Number($('planar-angle').value),labels:$('planar-labels').checked,spots:$('planar-spots')?.checked});
+        scene=make({...state,extended:$('planar-extended')?.checked,halfAngle:Number($('planar-angle').value),labels:$('planar-labels').checked,spots:$('planar-spots')?.checked});
         urls.forEach(url=>URL.revokeObjectURL(url));urls=[];
         const link=(bytes,type)=>{const url=URL.createObjectURL(new Blob([bytes],{type}));urls.push(url);return url;};
         const svgUrl=link(svg(scene),'image/svg+xml');$('planar-preview').src=svgUrl;
@@ -178,9 +184,14 @@
       $('planar-spot-info').textContent=spot?`(${spot.hkl.join(' ')})：d = ${spot.dNm.toFixed(5)} nm；|g| = ${spot.gInvNm.toFixed(4)} nm⁻¹；散射角 ≈ ${spot.angleDeg.toFixed(4)}°。`:'当前视场和指数范围内无允许的非零反射，可增大视场或选择较低指数晶向。';
     }
     $('planar-reflections')?.addEventListener('change',showSpot);
+    $('planar-generate')?.addEventListener('click',()=>{
+      try{const direction=D.parse($('planar-direction').value).input;setDirection(direction);state=getState();refresh();}
+      catch(error){$('planar-status').textContent=error.message;}
+    });
+    $('planar-extended')?.addEventListener('change',refresh);
     $('planar-spots')?.addEventListener('change',()=>{if($('planar-spots').checked)$('planar-angle').value='2';refresh();});
     $('planar-open').addEventListener('click',()=>{
-      try{state=getState();if(!state.direction)throw new Error('请先输入晶向并点击“转到晶向”，再生成二维图纸。');if($('planar-spots')){$('planar-spots').disabled=state.model!=='FCC';if(state.model!=='FCC')$('planar-spots').checked=false;}refresh();dialog.showModal();$('export-status').textContent='';}
+      try{state=getState();if(!state.direction)throw new Error('请先输入晶向并点击“转到晶向”，再生成二维图纸。');$('planar-direction').value=state.direction.join(' ');$('planar-extended').checked=state.edition==='day';if($('planar-spots')){$('planar-spots').disabled=state.model!=='FCC';if(state.model!=='FCC')$('planar-spots').checked=false;}refresh();dialog.showModal();$('export-status').textContent='';}
       catch(error){$('export-status').textContent=error.message;}
     });
     $('planar-close').addEventListener('click',()=>dialog.close());
