@@ -75,10 +75,10 @@
 
   window.KikuchiPlanar.attach(()=>{
     setSpin(false);
-    return {model,legend:data.legends[model],faces:data.faces,
+    return {model,edition,legend:data.legends[model],faces:data.faces,
       basis:[[1,0,0],[0,1,0],[0,0,1]].map(rotate),direction:activeDirection&&activeDirection.slice(),
       pins:poleOverlay.serialize().split(';').filter(Boolean)};
-  });
+  },setView);
 
   function schedule() { if (!frame && !document.hidden) frame = requestAnimationFrame(draw); }
   function project(v) { return [width/2+v[0]*scale,height/2-v[1]*scale]; }
@@ -374,4 +374,3 @@
   }
   setZoom(zoom);setModel(model);poleOverlay.restore(params.get('poles'));resize();
 })();
-
