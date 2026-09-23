@@ -212,11 +212,12 @@
         const select=$('planar-band-select');select.replaceChildren();
         for(const b of scene.metadata.bands){const o=document.createElement('option');o.value=b.hkl.join(',');o.textContent='('+b.hkl.join(' ')+')';select.appendChild(o);}
         showBand();
-      }catch(error){$('planar-status').textContent=error.message;scene=null;$('planar-preview').removeAttribute('src');$('planar-svg').removeAttribute('href');$('planar-pdf').removeAttribute('href');}
+      }catch(error){$('planar-status').textContent=error.message;scene=null;$('planar-band-info').textContent='参数无效，请修正后生成。';$('planar-band-select').replaceChildren();$('planar-preview').removeAttribute('src');$('planar-svg').removeAttribute('href');$('planar-pdf').removeAttribute('href');}
     }
     function showBand(){const b=scene?.metadata.bands.find(b=>b.hkl.join(',')===$('planar-band-select').value);$('planar-band-info').textContent=b?`(${b.hkl.join(' ')})：d = ${b.dNm.toFixed(5)} nm；几何带宽 2θB = ${b.widthDeg.toFixed(4)}°。实线为带边界，虚线为中心线，淡色填充不代表强度。`:'当前未显示菊池带。';}
     $('planar-band-select').addEventListener('change',showBand);
     for(const id of ['planar-bands','planar-lattice','planar-voltage','planar-diamond','planar-centers','planar-hkl'])$(id).addEventListener('change',refresh);
+    for(const id of ['planar-lattice','planar-voltage'])$(id).addEventListener('input',refresh);
     function showSpot(){
       const spot=scene?.metadata.reflections.find(s=>s.hkl.join(',')===$('planar-reflections').value);
       $('planar-spot-info').textContent=spot?`(${spot.hkl.join(' ')})：d = ${spot.dNm.toFixed(5)} nm；|g| = ${spot.gInvNm.toFixed(4)} nm⁻¹；散射角 ≈ ${spot.angleDeg.toFixed(4)}°。`:'当前视场和指数范围内无允许的非零反射，可增大视场或选择较低指数晶向。';
