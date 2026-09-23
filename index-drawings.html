@@ -19,10 +19,10 @@
   <script src="direction.js?v=20260922" defer></script>
   <script src="pole-picker.js?v=20260923-tilt1" defer></script>
   <script src="pole-catalog.js?v=20260923-tilt1" defer></script>
-  <script src="planar-export.js?v=20260922-si2" defer></script>
+  <script src="planar-export.js?v=20260924-day1" defer></script>
   <script src="tilt-engine.js?v=20260923" defer></script>
   <script src="tilt-ui.js?v=20260923" defer></script>
-  <script src="viewer-drawings.js?v=20260923-tilt1" defer></script>
+  <script src="viewer-drawings.js?v=20260924-day1" defer></script>
 </head>
 <body class="teaching-app">
   <a class="skip-link" href="#controls">跳到模型控制</a>
@@ -94,8 +94,8 @@
   </main>
   <dialog id="planar-dialog" aria-labelledby="planar-title">
     <div class="pole-header"><h2 id="planar-title">二维菊池线图</h2><button id="planar-close" type="button" autofocus>关闭二维预览</button></div>
-    <div class="planar-options"><label for="planar-angle">水平 / 垂直半视场角</label><select id="planar-angle"><option value="1">±1°</option><option value="2">±2°</option><option value="5">±5°</option><option value="15">±15°</option><option value="25">±25°</option><option value="35" selected>±35°</option><option value="45">±45°</option><option value="60">±60°</option></select><label><input id="planar-labels" type="checkbox" checked> 显示其他交点坐标</label></div>
-    <p class="detail">中心投影（Gnomonic）：球面中心线投到平面成为直线。使用简明版线族，保留视场内已选极；不包含带宽和强度模拟。</p>
+    <div class="planar-options"><label for="planar-direction">任意晶向 [uvw]</label><input id="planar-direction" placeholder="例如 1 1 2 或 -1 1 3"><button id="planar-generate" type="button">按输入晶向生成</button><label><input id="planar-extended" type="checkbox"> 扩展数学晶面族</label></div><p>两个图纸版本均支持任意晶向与当前晶向导出。Austin P. Day 原图版默认启用扩展数学晶面族；生成的是可编辑几何重绘，并非原图逐线数字化。PDF / SVG 保留矢量线条与文字，PNG 为位图。</p><div class="planar-options"><label for="planar-angle">水平 / 垂直半视场角</label><select id="planar-angle"><option value="1">±1°</option><option value="2">±2°</option><option value="5">±5°</option><option value="15">±15°</option><option value="25">±25°</option><option value="35" selected>±35°</option><option value="45">±45°</option><option value="60">±60°</option></select><label><input id="planar-labels" type="checkbox" checked> 显示其他交点坐标</label></div>
+    <p class="detail">中心投影（Gnomonic）：球面中心线投到平面成为直线。可选择基础或扩展数学线族，保留视场内已选极；不包含带宽和强度模拟。</p>
     <div class="planar-downloads"><a id="planar-pdf" download>下载 PDF（A4 矢量）</a><a id="planar-svg" download>下载 SVG（可编辑矢量）</a><button id="planar-png" type="button">下载 PNG（高清）</button></div>
     <label><input id="planar-spots" type="checkbox"> 叠加 Si 衍射斑点（200 kV，仅 FCC 模式）</label><p>Si 采用金刚石结构消光规则，晶格常数 0.5431 nm。斑点为零阶劳厄带几何近似，指数范围 |h|、|k|、|l| ≤ 8，等大小不代表强度；不模拟动力学禁反射。启用后切换至 ±2°，与菊池线共用角度尺度。</p><div id="planar-spot-controls" hidden><label for="planar-reflections">选择衍射斑点</label><select id="planar-reflections"></select><p id="planar-spot-info"></p></div><p id="planar-status" role="status"></p>
     <img id="planar-preview" alt="以指定晶向为中心的二维菊池中心线图预览">
@@ -119,4 +119,3 @@
   </footer>
 </body>
 </html>
-
