@@ -21,11 +21,11 @@
   const orientation=(base,a,b,a0,b0,sa=1,sb=1)=>mm(mm(stage(a,b,sa,sb),tr(stage(a0,b0,sa,sb))),base);
   const residual=(u,target,mode='zone')=>{const v=mv(u,unit(target));return mode==='plane'?Math.asin(Math.min(1,Math.abs(v[2])))/rad:Math.atan2(Math.hypot(v[0],v[1]),v[2])/rad;};
   const combinedLimit=30;
-  const withinLimits=(a,b,{amin=-35,amax=35,bmin=-30,bmax=30}={})=>Number.isFinite(a)&&Number.isFinite(b)&&a>=amin-1e-9&&a<=amax+1e-9&&b>=bmin-1e-9&&b<=bmax+1e-9&&Math.abs(a)+Math.abs(b)<=combinedLimit+1e-9;
-  function solve({base,target,a0=0,b0=0,a=a0,b=b0,amin=-35,amax=35,bmin=-30,bmax=30,sa=1,sb=1,mode='zone'}){
+  const withinLimits=(a,b,{amin=-35,amax=35,bmin=-30,bmax=30,combined=true}={})=>Number.isFinite(a)&&Number.isFinite(b)&&a>=amin-1e-9&&a<=amax+1e-9&&b>=bmin-1e-9&&b<=bmax+1e-9&&(combined===false||Math.abs(a)+Math.abs(b)<=combinedLimit+1e-9);
+  function solve({base,target,a0=0,b0=0,a=a0,b=b0,amin=-35,amax=35,bmin=-30,bmax=30,sa=1,sb=1,mode='zone',combined=true}){
     if(![a0,b0,a,b,amin,amax,bmin,bmax,sa,sb].every(Number.isFinite)||amin>amax||bmin>bmax||Math.max(...[amin,amax,bmin,bmax].map(Math.abs))>180||Math.abs(sa)!==1||Math.abs(sb)!==1)throw Error('请检查角度限位和轴方向。');
-    const limits={amin,amax,bmin,bmax};
-    if(!withinLimits(a0,b0,limits)||!withinLimits(a,b,limits))throw Error('参考或当前读数超出单轴/组合限位：|α| + |β| ≤ 30°。');
+    const limits={amin,amax,bmin,bmax,combined};
+    if(!withinLimits(a0,b0,limits)||!withinLimits(a,b,limits))throw Error(combined?'参考或当前读数超出单轴/组合限位：|α| + |β| ≤ 30°。':'参考或当前读数超出单轴限位。');
     const v=mv(mm(tr(stage(a0,b0,sa,sb)),base),unit(target)),candidates=[];
     const add=(aa,bb)=>{if(!withinLimits(aa,bb,limits))return;const err=residual(orientation(base,aa,bb,a0,b0,sa,sb),target,mode);if(err<1e-6)candidates.push({a:aa,b:bb,error:err,cost:Math.hypot(aa-a,bb-b)});};
     if(mode==='zone'){
@@ -48,7 +48,7 @@
       tryA(Math.max(amin,Math.min(amax,a)));
       const n=Math.max(1,Math.ceil((amax-amin)/.1));for(let i=0;i<=n;i++)tryA(amin+(amax-amin)*i/n);
       // Intersections with the diamond boundary |alpha|+|beta|=30.
-      for(const signA of [-1,1])for(const signB of [-1,1]){
+      if(combined)for(const signA of [-1,1])for(const signB of [-1,1]){
         const f=t=>mv(stage(signA*t,signB*(30-t),sa,sb),v)[2];
         let lo=0,fl=f(0);add(0,signB*30);
         for(let i=1;i<=300;i++){
