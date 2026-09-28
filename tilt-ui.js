@@ -22,9 +22,9 @@
   <label>α 读数方向<select id="tilt-sa"><option value="1">同右手正向</option><option value="-1">反向</option></select></label><label>β 读数方向<select id="tilt-sb"><option value="1">同右手正向</option><option value="-1">反向</option></select></label></details>
   <button id="tilt-init" type="button">建立参考取向</button></fieldset>
   <fieldset><legend>2 指定目标</legend><label>目标条件<select id="tilt-mode"><option value="zone">晶带轴平行电子束</option><option value="plane">晶面平行电子束</option></select></label><label>目标指数<input id="tilt-target" value="1 2 1"></label>
-  <small>指定 [112] 与 [121] 不同，不自动替换等价目标。可点击下图的菊池极设置带轴目标。</small>
+  <label><input id="tilt-equivalents" type="checkbox"> 同时计算对称等价晶带轴</label><small>适用于 Si 立方对称：如 [112]、[121] 属于同一晶向族，但所需倾角不同。勾选后列表比较，由你选择采用；不勾选时仅计算指定方向。可点击下图菊池极设置目标。</small>
   <button id="tilt-solve" type="button">计算目标 α / β</button><p id="tilt-result" role="status"></p>
-  <button id="tilt-play" type="button" disabled>播放倾转</button> <button id="tilt-stop" type="button">停止</button> <button id="tilt-go" type="button" disabled>到达计算终点</button>
+  <div id="tilt-equivalent-results" hidden></div><button id="tilt-play" type="button" disabled>播放倾转</button> <button id="tilt-stop" type="button">停止</button> <button id="tilt-go" type="button" disabled>到达计算终点</button>
   </fieldset><fieldset><legend>3 手动倾转与路径检查</legend>
   <label>α °<input id="tilt-a" type="number" value="0" step="0.1"><input id="tilt-ar" aria-label="α 滑块" type="range" min="-35" max="35" step="0.01" value="0"></label>
   <label>β °<input id="tilt-b" type="number" value="0" step="0.1"><input id="tilt-br" aria-label="β 滑块" type="range" min="-30" max="30" step="0.01" value="0"></label>
@@ -35,18 +35,20 @@
   <p class="detail">Si 200 kV，a = 0.5431 nm。衍射按金刚石消光及 |h|、|k|、|l| ≤ 8 筛选，以弹性球径向偏离 ≤ 0.15 nm⁻¹ 显示离轴反射；透明度仅表示几何接近程度，不是强度。未模拟带宽、动力学、多重散射和样品遮挡。</p>
   <p class="detail">参考 <a href="https://github.com/din14970/ALPHABETA-TEM-tilting-suite" target="_blank" rel="noopener">ALPHABETA</a> 与 <a href="https://mompiou.github.io/pycotem/stereoproj/" target="_blank" rel="noopener">pycotem</a> 的问题定义；本模块由旋转方程独立实现，未复制其源码。</p>
   </div></div>`;
+  dialog.querySelector('.tilt-layout').before(dialog.querySelector('#tilt-equivalent-results'));
   document.body.append(dialog);
-  const style=document.createElement('style');style.textContent=`#tilt-dialog{width:min(1160px,96vw);max-width:96vw;max-height:94vh;overflow:auto;border:1px solid #aebfc2;border-radius:16px;padding:20px;color:#17383e}#tilt-dialog::backdrop{background:#203b4990}.tilt-layout{display:grid;grid-template-columns:minmax(270px,350px) minmax(0,1fr);gap:24px}#tilt-dialog fieldset{border:1px solid #cad8da;border-radius:8px;margin:12px 0;padding:14px}#tilt-dialog label{display:block;margin:8px 0}#tilt-dialog input:not([type=checkbox]),#tilt-dialog select{display:block;box-sizing:border-box;width:100%;padding:7px;margin-top:4px}#tilt-dialog button{margin-top:8px;padding:9px}.tilt-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tilt-map canvas{width:100%;height:auto;touch-action:manipulation;border:1px solid #ccd8db}#tilt-dialog small{display:block;line-height:1.5;color:#45616a}#tilt-result,#tilt-error{white-space:pre-line;font-weight:600}#tilt-dialog legend{font-weight:700}@media(max-width:760px){.tilt-layout{grid-template-columns:1fr}#tilt-dialog{padding:12px}.tilt-map{order:-1}}`;
+  const style=document.createElement('style');style.textContent=`#tilt-dialog{width:min(1160px,96vw);max-width:96vw;max-height:94vh;overflow:auto;border:1px solid #aebfc2;border-radius:16px;padding:20px;color:#17383e}#tilt-dialog::backdrop{background:#203b4990}.tilt-layout{display:grid;grid-template-columns:minmax(270px,350px) minmax(0,1fr);gap:24px}#tilt-dialog fieldset{border:1px solid #cad8da;border-radius:8px;margin:12px 0;padding:14px}#tilt-dialog label{display:block;margin:8px 0}#tilt-dialog input:not([type=checkbox]),#tilt-dialog select{display:block;box-sizing:border-box;width:100%;padding:7px;margin-top:4px}#tilt-dialog button{margin-top:8px;padding:9px}.tilt-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tilt-map canvas{width:100%;height:auto;touch-action:manipulation;border:1px solid #ccd8db}#tilt-dialog small{display:block;line-height:1.5;color:#45616a}#tilt-result,#tilt-error{white-space:pre-line;font-weight:600}#tilt-dialog legend{font-weight:700}#tilt-equivalent-results{overflow:auto;max-height:420px;margin:12px 0}#tilt-equivalent-results table{border-collapse:collapse;font-size:13px;white-space:nowrap}#tilt-equivalent-results th,#tilt-equivalent-results td{padding:6px;border:1px solid #cad8da;text-align:right}#tilt-equivalent-results th{background:#edf5f6}#tilt-equivalent-results caption{text-align:left;white-space:normal;font-weight:600;padding:8px 0}@media(max-width:760px){.tilt-layout{grid-template-columns:1fr}#tilt-dialog{padding:12px}.tilt-map{order:-1}}`;
   document.head.append(style);
   const $=id=>document.getElementById('tilt-'+id),canvas=$('canvas'),ctx=canvas.getContext('2d');
   const data=window.KIKUCHI_MODEL,planes=C.planes(data.legends.FCC),poles=C.build(data.legends.FCC,data.faces);
   let config=null,base=null,a=0,b=0,goal=null,raf=0,hit=[],spotHit=[],selectedSpot='';
   function stop(){cancelAnimationFrame(raf);raf=0;}
-  function clearGoal(){goal=null;$('play').disabled=$('go').disabled=true;}
+  function clearGoal(){goal=null;$('equivalent-results').replaceChildren();$('equivalent-results').hidden=true;$('play').disabled=$('go').disabled=true;}
   function number(id){const raw=$(id).value.trim(),n=Number(raw);if(!raw||!Number.isFinite(n))throw Error('请输入有效角度。');return n;}
   function args(){return {base,target:D.parse($('target').value).reduced,...config,a,b,mode:$('mode').value};}
   function sync(){for(const [key,value,other]of [['a',a,b],['b',b,a]]){const remaining=config.combined?Math.max(0,30-Math.abs(other)):Infinity;for(const id of [key,key+'r']){$(id).min=Math.max(config[key+'min'],-remaining);$(id).max=Math.min(config[key+'max'],remaining);}$(key).value=value.toFixed(4);$(key+'r').value=value;}}
   function render(){
+    $('equivalents').disabled=$('mode').value!=='zone';
     if(!base)return;
     const u=E.mm(E.rz(config.azimuth),E.orientation(base,a,b,config.a0,config.b0,config.sa,config.sb)),basis=E.tr(u),lim=Math.tan(number('field')*Math.PI/180);
     const xy=p=>[400+p[0]/lim*340,400-p[1]/lim*340];
@@ -112,12 +114,27 @@
   $('open').onclick=()=>{dialog.showModal();if(!base)guard(initialize)();else render();};
   $('close').onclick=()=>{stop();dialog.close();};dialog.addEventListener('close',stop);
   $('init').onclick=guard(initialize);
-  $('solve').onclick=guard(()=>{stop();clearGoal();if(!base)throw Error('请先建立参考取向。');goal=E.solve(args());$('result').textContent=goal?`目标 α ${goal.a.toFixed(4)}° / β ${goal.b.toFixed(4)}°\n增量 Δα ${(goal.a-a).toFixed(4)}° / Δβ ${(goal.b-b).toFixed(4)}°\n${$('mode').value==='plane'?'已选取较近的可行晶面解；不是唯一解。':'指定目标可达；未替换等价方向。'}\n${config.combined?'已检查单轴及 |α| + |β| ≤ 30°':'组合限位未启用，仅检查单轴范围'}；动画采用同步直线路径。实际机台路径仍须核对。`:(config.combined?'当前约束下未找到可行解（单轴范围及 |α| + |β| ≤ 30°）。请检查目标与参考取向。':'当前单轴范围内未找到可行解。组合限位未启用。');$('play').disabled=$('go').disabled=!goal;render();});
+  function showEquivalents(){
+    const rows=E.equivalentSolutions(args()),host=$('equivalent-results');host.replaceChildren();host.hidden=false;
+    const table=document.createElement('table'),caption=table.createCaption();
+    caption.textContent=`共 ${rows.length} 个等价方向，${rows.filter(r=>r.solution).length} 个在当前限位内可达。Δ 相对本次计算起点 α=${a.toFixed(3)}°、β=${b.toFixed(3)}°；超限行仅列几何解，不可采用。每个方向列一个较近解。`;
+    const head=table.createTHead().insertRow();for(const text of ['带轴 [uvw]','α / °','β / °','Δα / °','Δβ / °','|α|+|β| / °','状态','操作']){const th=document.createElement('th');th.scope='col';th.textContent=text;head.append(th);}
+    const body=table.createTBody();
+    rows.sort((x,y)=>Number(!!y.solution)-Number(!!x.solution)||(x.geometric?.cost??Infinity)-(y.geometric?.cost??Infinity));
+    for(const row of rows){
+      const tr=body.insertRow(),s=row.geometric,fmt=x=>Math.abs(x)<.00005?'0.0000':x.toFixed(4);
+      for(const text of [D.label(row.target),s?fmt(s.a):'—',s?fmt(s.b):'—',s?fmt(s.a-a):'—',s?fmt(s.b-b):'—',s?fmt(Math.abs(s.a)+Math.abs(s.b)):'—',row.solution?'可达':s?'超限（几何解）':'无解'])tr.insertCell().textContent=text;
+      const button=document.createElement('button');button.type='button';button.textContent='采用 '+D.label(row.target);button.disabled=!row.solution;button.onclick=guard(()=>{$('target').value=row.target.join(' ');calculate();});tr.insertCell().append(button);
+    }
+    host.append(table);
+  }
+  function calculate(){stop();clearGoal();if(!base)throw Error('请先建立参考取向。');goal=E.solve(args());$('result').textContent=goal?`目标 α ${goal.a.toFixed(4)}° / β ${goal.b.toFixed(4)}°\n增量 Δα ${(goal.a-a).toFixed(4)}° / Δβ ${(goal.b-b).toFixed(4)}°\n${$('mode').value==='plane'?'已选取较近的可行晶面解；不是唯一解。':'指定目标可达；未替换等价方向。'}\n${config.combined?'已检查单轴及 |α| + |β| ≤ 30°':'组合限位未启用，仅检查单轴范围'}；动画采用同步直线路径。实际机台路径仍须核对。`:(config.combined?'当前约束下未找到可行解（单轴范围及 |α| + |β| ≤ 30°）。请检查目标与参考取向。':'当前单轴范围内未找到可行解。组合限位未启用。');$('play').disabled=$('go').disabled=!goal;render();if($('equivalents').checked&&$('mode').value==='zone')showEquivalents();}
+  $('solve').onclick=guard(calculate);
   $('go').onclick=guard(()=>{stop();if(goal){if(!E.withinLimits(goal.a,goal.b,config))throw Error('目标超出已启用的限位。');a=goal.a;b=goal.b;sync();render();}});
   $('play').onclick=()=>{if(!goal)return;stop();const start=performance.now(),aa=a,bb=b,dest={...goal};const tick=time=>{if(!dialog.open||document.hidden){stop();return;}const t=Math.min(1,(time-start)/2200);const nextA=aa+(dest.a-aa)*t,nextB=bb+(dest.b-bb)*t;if(!E.withinLimits(nextA,nextB,config)){stop();$('error').textContent='路径超出已启用的限位，已停止。';return;}a=nextA;b=nextB;sync();render();if(t<1)raf=requestAnimationFrame(tick);else raf=0;};raf=requestAnimationFrame(tick);};
   $('stop').onclick=stop;$('reset').onclick=guard(()=>{stop();if(!base)throw Error('请先建立参考取向。');a=config.a0;b=config.b0;clearGoal();$('result').textContent='已回到参考读数，请重新计算目标。';sync();render();});
   for(const key of ['a','b'])for(const id of [key,key+'r'])$(id).addEventListener('input',guard(()=>{stop();if(!base)throw Error('请先建立参考取向。');const v=number(id);if(!E.withinLimits(key==='a'?v:a,key==='b'?v:b,config)){sync();throw Error(config.combined?'角度超出限位：|α| + |β| 不得超过 30°，且须满足单轴范围。':'角度超出单轴限位。');}if(key==='a')a=v;else b=v;clearGoal();$('result').textContent='手动倾转后请重新计算目标。';sync();render();}));
-  for(const id of ['target','mode'])$(id).addEventListener('input',()=>{stop();clearGoal();$('result').textContent='目标已更新，请计算。';render();});
+  for(const id of ['equivalents','target','mode'])$(id).addEventListener('input',()=>{stop();clearGoal();$('result').textContent='目标已更新，请计算。';render();});
   for(const id of ['combined','zone','ref','phi','a0','b0','amin','amax','bmin','bmax','sa','sb','azimuth'])$(id).addEventListener('input',()=>{stop();clearGoal();base=null;$('result').textContent='参考设置已改变，请重新建立参考取向。';$('error').textContent='图中仍为上次状态，尚未应用新参考。';});
   $('spot-select').addEventListener('change',()=>{selectedSpot=$('spot-select').value;render();});
   for(const id of ['field','spots','spot-labels'])$(id).addEventListener('change',guard(render));
