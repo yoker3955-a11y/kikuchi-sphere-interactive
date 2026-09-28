@@ -20,10 +20,14 @@
   }
   const orientation=(base,a,b,a0,b0,sa=1,sb=1)=>mm(mm(stage(a,b,sa,sb),tr(stage(a0,b0,sa,sb))),base);
   const residual=(u,target,mode='zone')=>{const v=mv(u,unit(target));return mode==='plane'?Math.asin(Math.min(1,Math.abs(v[2])))/rad:Math.atan2(Math.hypot(v[0],v[1]),v[2])/rad;};
+  const combinedLimit=30;
+  const withinLimits=(a,b,{amin=-35,amax=35,bmin=-30,bmax=30}={})=>Number.isFinite(a)&&Number.isFinite(b)&&a>=amin-1e-9&&a<=amax+1e-9&&b>=bmin-1e-9&&b<=bmax+1e-9&&Math.abs(a)+Math.abs(b)<=combinedLimit+1e-9;
   function solve({base,target,a0=0,b0=0,a=a0,b=b0,amin=-35,amax=35,bmin=-30,bmax=30,sa=1,sb=1,mode='zone'}){
     if(![a0,b0,a,b,amin,amax,bmin,bmax,sa,sb].every(Number.isFinite)||amin>amax||bmin>bmax||Math.max(...[amin,amax,bmin,bmax].map(Math.abs))>180||Math.abs(sa)!==1||Math.abs(sb)!==1)throw Error('请检查角度限位和轴方向。');
+    const limits={amin,amax,bmin,bmax};
+    if(!withinLimits(a0,b0,limits)||!withinLimits(a,b,limits))throw Error('参考或当前读数超出单轴/组合限位：|α| + |β| ≤ 30°。');
     const v=mv(mm(tr(stage(a0,b0,sa,sb)),base),unit(target)),candidates=[];
-    const add=(aa,bb)=>{if(aa<amin-1e-8||aa>amax+1e-8||bb<bmin-1e-8||bb>bmax+1e-8)return;const err=residual(orientation(base,aa,bb,a0,b0,sa,sb),target,mode);if(err<1e-6)candidates.push({a:aa,b:bb,error:err,cost:Math.hypot(aa-a,bb-b)});};
+    const add=(aa,bb)=>{if(!withinLimits(aa,bb,limits))return;const err=residual(orientation(base,aa,bb,a0,b0,sa,sb),target,mode);if(err<1e-6)candidates.push({a:aa,b:bb,error:err,cost:Math.hypot(aa-a,bb-b)});};
     if(mode==='zone'){
       const seed=Math.hypot(v[0],v[2])<1e-12?b*sb:Math.atan2(-v[0],v[2])/rad;
       for(const bb of [seed,seed+180]){
@@ -43,6 +47,16 @@
       };
       tryA(Math.max(amin,Math.min(amax,a)));
       const n=Math.max(1,Math.ceil((amax-amin)/.1));for(let i=0;i<=n;i++)tryA(amin+(amax-amin)*i/n);
+      // Intersections with the diamond boundary |alpha|+|beta|=30.
+      for(const signA of [-1,1])for(const signB of [-1,1]){
+        const f=t=>mv(stage(signA*t,signB*(30-t),sa,sb),v)[2];
+        let lo=0,fl=f(0);add(0,signB*30);
+        for(let i=1;i<=300;i++){
+          const hi=i/10,fh=f(hi);add(signA*hi,signB*(30-hi));
+          if(fl*fh<0){let l=lo,h=hi,vl=fl;for(let j=0;j<45;j++){const m=(l+h)/2,fm=f(m);if(vl*fm<=0)h=m;else{l=m;vl=fm;}}const t=(l+h)/2;add(signA*t,signB*(30-t));}
+          lo=hi;fl=fh;
+        }
+      }
       // Also solve at beta boundaries; catches feasible intervals narrower than grid.
       for(const bb of [bmin,bmax,b]){const w=mv(ry(bb*sb),v);const aa=Math.atan2(-w[2],w[1])/rad;for(let k=-2;k<=2;k++)add((aa+180*k)/sa,bb);}
     }else throw Error('未知目标模式。');
@@ -54,8 +68,7 @@
     else {let i=0;if(m[1][1]>m[i][i])i=1;if(m[2][2]>m[i][i])i=2;const j=(i+1)%3,k=(i+2)%3,s=2*Math.sqrt(1+m[i][i]-m[j][j]-m[k][k]);q=[0,0,0,0];q[i]=s/4;q[j]=(m[j][i]+m[i][j])/s;q[k]=(m[k][i]+m[i][k])/s;q[3]=(m[k][j]-m[j][k])/s;}
     return q;
   }
-  const api={unit,dot,cross,mv,mm,tr,rx,ry,rz,stage,reference,orientation,residual,solve,quaternion};
+  const api={unit,dot,cross,mv,mm,tr,rx,ry,rz,stage,reference,orientation,residual,solve,quaternion,withinLimits,combinedLimit};
   if(typeof module!=='undefined')module.exports=api;
   if(typeof window!=='undefined')window.KikuchiTilt=api;
 })();
-

@@ -16,7 +16,7 @@
   <label>000 → 参考斑点的屏幕方位 °<input id="tilt-phi" type="number" value="0" step="0.1"></label>
   <small>屏幕向右为 0°，向上为 +90°；参考反射必须属于当前带轴。</small>
   <div class="tilt-pair"><label>参考 α₀ °<input id="tilt-a0" type="number" value="0" step="0.1"></label><label>参考 β₀ °<input id="tilt-b0" type="number" value="0" step="0.1"></label></div>
-  <details><summary>样品杆标定与限位</summary><p>默认限位仅为演示；上机前按样品杆设置。轴方向、屏幕旋转须由实测标定。</p>
+  <details><summary>样品杆标定与限位</summary><p>组合限位：|α| + |β| ≤ 30°（机台绝对读数，含等号）。同时满足下方单轴范围；单轴默认值仍需核对。轴方向、屏幕旋转须由实测标定。</p>
   <label>α 正轴在屏幕的方位 °<input id="tilt-azimuth" type="number" value="0" step="0.1"></label><small>绕束向的机台轴配准；向右为 0°。与上方参考斑点方位分别测量。</small>
   <div class="tilt-pair"><label>α 最小 °<input id="tilt-amin" type="number" value="-35"></label><label>α 最大 °<input id="tilt-amax" type="number" value="35"></label><label>β 最小 °<input id="tilt-bmin" type="number" value="-30"></label><label>β 最大 °<input id="tilt-bmax" type="number" value="30"></label></div>
   <label>α 读数方向<select id="tilt-sa"><option value="1">同右手正向</option><option value="-1">反向</option></select></label><label>β 读数方向<select id="tilt-sb"><option value="1">同右手正向</option><option value="-1">反向</option></select></label></details>
@@ -45,7 +45,7 @@
   function clearGoal(){goal=null;$('play').disabled=$('go').disabled=true;}
   function number(id){const raw=$(id).value.trim(),n=Number(raw);if(!raw||!Number.isFinite(n))throw Error('请输入有效角度。');return n;}
   function args(){return {base,target:D.parse($('target').value).reduced,...config,a,b,mode:$('mode').value};}
-  function sync(){for(const [key,value]of [['a',a],['b',b]]){$(key).value=value.toFixed(4);$(key+'r').value=value;}}
+  function sync(){for(const [key,value,other]of [['a',a,b],['b',b,a]]){const remaining=Math.max(0,30-Math.abs(other));for(const id of [key,key+'r']){$(id).min=Math.max(config[key+'min'],-remaining);$(id).max=Math.min(config[key+'max'],remaining);}$(key).value=value.toFixed(4);$(key+'r').value=value;}}
   function render(){
     if(!base)return;
     const u=E.mm(E.rz(config.azimuth),E.orientation(base,a,b,config.a0,config.b0,config.sa,config.sb)),basis=E.tr(u),lim=Math.tan(number('field')*Math.PI/180);
@@ -71,7 +71,7 @@
       const target=D.parse($('target').value).reduced,mode=$('mode').value;
       if(mode==='plane')line(P.clipLine(...E.mv(u,target),lim),'#bd3329',3);
       else {const pt=P.projectPole(target,basis,lim);if(pt){const [x,y]=xy(pt);ctx.strokeStyle='#bd3329';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#bd3329';ctx.fillText('目标 '+D.label(target),x+13,y+20);}}
-      $('error').textContent=`当前 α ${a.toFixed(3)}° / β ${b.toFixed(3)}°\n${mode==='zone'?'目标带轴失配':'晶面偏离平行'} ${E.residual(u,target,mode).toFixed(5)}°`;
+      $('error').textContent=`当前 α ${a.toFixed(3)}° / β ${b.toFixed(3)}°\n组合占用 ${(Math.abs(a)+Math.abs(b)).toFixed(3)}° / 30°\n${mode==='zone'?'目标带轴失配':'晶面偏离平行'} ${E.residual(u,target,mode).toFixed(5)}°`;
     }catch(e){$('error').textContent=e.message;}
     ctx.restore();ctx.fillStyle='#25454d';ctx.font='18px sans-serif';ctx.fillText('固定束向 +Z · 屏幕 X 向右 / Y 向上',60,34);
     ctx.fillText(`α ${a.toFixed(3)}°   β ${b.toFixed(3)}°   半视场 ±${number('field')}°`,60,777);
@@ -82,7 +82,7 @@
     stop();clearGoal();base=null;
     const c={};for(const key of ['a0','b0','amin','amax','bmin','bmax','sa','sb','azimuth'])c[key]=number(key);
     if(c.amin>=c.amax||c.bmin>=c.bmax||Math.max(...[c.amin,c.amax,c.bmin,c.bmax].map(Math.abs))>180)throw Error('限位应递增并位于 ±180° 内。');
-    if(c.a0<c.amin||c.a0>c.amax||c.b0<c.bmin||c.b0>c.bmax)throw Error('参考读数超出限位。');
+    if(!E.withinLimits(c.a0,c.b0,c))throw Error('参考读数超出限位：必须同时满足单轴范围及 |α₀| + |β₀| ≤ 30°。');
     const reflection=D.parse($('ref').value);
     if(!P.siAllowed(reflection.input))throw Error('参考斑点不满足 Si 金刚石结构允许反射条件；例如使用 2 -2 0，而非 1 -1 0。');
     const next=E.reference(D.parse($('zone').value).reduced,reflection.reduced,number('phi')-c.azimuth);
@@ -93,11 +93,11 @@
   $('open').onclick=()=>{dialog.showModal();if(!base)guard(initialize)();else render();};
   $('close').onclick=()=>{stop();dialog.close();};dialog.addEventListener('close',stop);
   $('init').onclick=guard(initialize);
-  $('solve').onclick=guard(()=>{stop();clearGoal();if(!base)throw Error('请先建立参考取向。');goal=E.solve(args());$('result').textContent=goal?`目标 α ${goal.a.toFixed(4)}° / β ${goal.b.toFixed(4)}°\n增量 Δα ${(goal.a-a).toFixed(4)}° / Δβ ${(goal.b-b).toFixed(4)}°\n${$('mode').value==='plane'?'已选取较近的可行晶面解；不是唯一解。':'指定目标可达；未替换等价方向。'}\n仅验证轴限位，实际遮挡须人工检查。`:'指定目标在当前限位内不可达。检查目标指数、参考取向或样品杆范围。';$('play').disabled=$('go').disabled=!goal;render();});
-  $('go').onclick=guard(()=>{stop();if(goal){a=goal.a;b=goal.b;sync();render();}});
-  $('play').onclick=()=>{if(!goal)return;stop();const start=performance.now(),aa=a,bb=b,dest={...goal};const tick=time=>{if(!dialog.open||document.hidden){stop();return;}const t=Math.min(1,(time-start)/2200);a=aa+(dest.a-aa)*t;b=bb+(dest.b-bb)*t;sync();render();if(t<1)raf=requestAnimationFrame(tick);else raf=0;};raf=requestAnimationFrame(tick);};
+  $('solve').onclick=guard(()=>{stop();clearGoal();if(!base)throw Error('请先建立参考取向。');goal=E.solve(args());$('result').textContent=goal?`目标 α ${goal.a.toFixed(4)}° / β ${goal.b.toFixed(4)}°\n增量 Δα ${(goal.a-a).toFixed(4)}° / Δβ ${(goal.b-b).toFixed(4)}°\n${$('mode').value==='plane'?'已选取较近的可行晶面解；不是唯一解。':'指定目标可达；未替换等价方向。'}\n已检查单轴及 |α| + |β| ≤ 30°；动画采用同步直线路径。实际机台路径仍须核对。`:'当前约束下未找到可行解（单轴范围及 |α| + |β| ≤ 30°）。请检查目标与参考取向。';$('play').disabled=$('go').disabled=!goal;render();});
+  $('go').onclick=guard(()=>{stop();if(goal){if(!E.withinLimits(goal.a,goal.b,config))throw Error('目标超出组合限位。');a=goal.a;b=goal.b;sync();render();}});
+  $('play').onclick=()=>{if(!goal)return;stop();const start=performance.now(),aa=a,bb=b,dest={...goal};const tick=time=>{if(!dialog.open||document.hidden){stop();return;}const t=Math.min(1,(time-start)/2200);const nextA=aa+(dest.a-aa)*t,nextB=bb+(dest.b-bb)*t;if(!E.withinLimits(nextA,nextB,config)){stop();$('error').textContent='路径超出组合限位，已停止。';return;}a=nextA;b=nextB;sync();render();if(t<1)raf=requestAnimationFrame(tick);else raf=0;};raf=requestAnimationFrame(tick);};
   $('stop').onclick=stop;$('reset').onclick=guard(()=>{stop();if(!base)throw Error('请先建立参考取向。');a=config.a0;b=config.b0;clearGoal();$('result').textContent='已回到参考读数，请重新计算目标。';sync();render();});
-  for(const key of ['a','b'])for(const id of [key,key+'r'])$(id).addEventListener('input',guard(()=>{stop();if(!base)throw Error('请先建立参考取向。');const v=number(id);if(v<config[key+'min']||v>config[key+'max'])throw Error('角度超出当前限位。');if(key==='a')a=v;else b=v;clearGoal();$('result').textContent='手动倾转后请重新计算目标。';sync();render();}));
+  for(const key of ['a','b'])for(const id of [key,key+'r'])$(id).addEventListener('input',guard(()=>{stop();if(!base)throw Error('请先建立参考取向。');const v=number(id);if(!E.withinLimits(key==='a'?v:a,key==='b'?v:b,config)){sync();throw Error('角度超出限位：|α| + |β| 不得超过 30°，且须满足单轴范围。');}if(key==='a')a=v;else b=v;clearGoal();$('result').textContent='手动倾转后请重新计算目标。';sync();render();}));
   for(const id of ['target','mode'])$(id).addEventListener('input',()=>{stop();clearGoal();$('result').textContent='目标已更新，请计算。';render();});
   for(const id of ['zone','ref','phi','a0','b0','amin','amax','bmin','bmax','sa','sb','azimuth'])$(id).addEventListener('input',()=>{stop();clearGoal();base=null;$('result').textContent='参考设置已改变，请重新建立参考取向。';$('error').textContent='图中仍为上次状态，尚未应用新参考。';});
   for(const id of ['field','spots'])$(id).addEventListener('change',guard(render));
@@ -105,4 +105,3 @@
   window.addEventListener('kikuchi-target',e=>{if(!e.detail)return;stop();clearGoal();$('target').value=e.detail.join(' ');$('mode').value='zone';$('result').textContent='已载入球面所选极，请计算。';if(dialog.open)render();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
 })();
-
