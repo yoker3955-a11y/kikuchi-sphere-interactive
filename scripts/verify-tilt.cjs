@@ -64,3 +64,18 @@ test('optional combined limit restores single-axis solutions without bypassing a
  assert.equal(E.solve({base,target:[1,2,1],combined:false,amin:-10,amax:10}),null);
  assert(E.solve({base,target:[1,1,0],a0:20,b0:20,combined:false}));
 });
+
+test('cubic equivalent families are unique, signed and correctly counted',()=>{
+ for(const [v,count] of [[[1,0,0],6],[[1,1,0],12],[[1,1,1],8],[[1,1,2],24],[[1,2,3],48]]){
+  const rows=E.cubicEquivalents(v);assert.equal(rows.length,count);assert.equal(new Set(rows.map(r=>r.join(','))).size,count);
+  assert(rows.some(r=>r.every((x,i)=>x===-v[i])));for(const r of rows)assert.deepEqual(r.map(Math.abs).sort(),v.slice().sort());
+ }
+ assert.deepEqual(E.cubicEquivalents([2,2,4]),E.cubicEquivalents([1,1,2]));assert.throws(()=>E.cubicEquivalents([0,0,0]));
+});
+test('equivalent angles preserve exact direction and distinguish geometric versus feasible solutions',()=>{
+ const base=E.reference([1,1,0],[2,-2,0],0),options={base,target:[1,1,2],combined:false};
+ const rows=E.equivalentSolutions(options);assert.equal(rows.length,24);
+ const a=rows.find(r=>r.target.join(',')==='1,1,2'),b=rows.find(r=>r.target.join(',')==='1,2,1');assert(!a.solution);assert(a.geometric);assert(b.solution);
+ for(const r of rows){assert(r.geometric);near(E.residual(E.orientation(base,r.geometric.a,r.geometric.b,0,0),r.target),0);if(r.solution)assert(E.withinLimits(r.solution.a,r.solution.b,{combined:false}));}
+ const constrained=E.equivalentSolutions({...options,combined:true});assert(!constrained.find(r=>r.target.join(',')==='1,2,1').solution);
+});

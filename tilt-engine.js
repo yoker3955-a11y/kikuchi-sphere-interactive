@@ -62,13 +62,30 @@
     }else throw Error('未知目标模式。');
     candidates.sort((x,y)=>x.cost-y.cost);return candidates[0]||null;
   }
+  // Full cubic m-3m direction family, appropriate for Si; retain opposite beam directions.
+  function cubicEquivalents(target){
+    if(target.length!==3||!target.every(Number.isSafeInteger)||!target.some(Boolean))throw Error('等价晶向需要三个非全零整数。');
+    const gcd=(a,b)=>b?gcd(b,a%b):a,g=target.reduce((a,b)=>gcd(a,Math.abs(b)),0),v=target.map(n=>n/g),seen=new Map();
+    seen.set(v.join(','),v);
+    for(const p of [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]])for(const a of [-1,1])for(const b of [-1,1])for(const c of [-1,1]){
+      const w=p.map((i,j)=>v[i]*[a,b,c][j]||0);seen.set(w.join(','),w);
+    }
+    return [...seen.values()];
+  }
+  function equivalentSolutions(options){
+    return cubicEquivalents(options.target).map(target=>{
+      const solution=solve({...options,target,mode:'zone'});
+      const geometric=solution||solve({...options,target,mode:'zone',amin:-180,amax:180,bmin:-180,bmax:180,combined:false});
+      return {target,solution,geometric};
+    });
+  }
   function quaternion(m){
     const t=m[0][0]+m[1][1]+m[2][2];let q;
     if(t>0){const s=2*Math.sqrt(t+1);q=[(m[2][1]-m[1][2])/s,(m[0][2]-m[2][0])/s,(m[1][0]-m[0][1])/s,s/4];}
     else {let i=0;if(m[1][1]>m[i][i])i=1;if(m[2][2]>m[i][i])i=2;const j=(i+1)%3,k=(i+2)%3,s=2*Math.sqrt(1+m[i][i]-m[j][j]-m[k][k]);q=[0,0,0,0];q[i]=s/4;q[j]=(m[j][i]+m[i][j])/s;q[k]=(m[k][i]+m[i][k])/s;q[3]=(m[k][j]-m[j][k])/s;}
     return q;
   }
-  const api={unit,dot,cross,mv,mm,tr,rx,ry,rz,stage,reference,orientation,residual,solve,quaternion,withinLimits,combinedLimit};
+  const api={unit,dot,cross,mv,mm,tr,rx,ry,rz,stage,reference,orientation,residual,solve,quaternion,withinLimits,combinedLimit,cubicEquivalents,equivalentSolutions};
   if(typeof module!=='undefined')module.exports=api;
   if(typeof window!=='undefined')window.KikuchiTilt=api;
 })();
