@@ -30,8 +30,8 @@
   <label>β °<input id="tilt-b" type="number" value="0" step="0.1"><input id="tilt-br" aria-label="β 滑块" type="range" min="-30" max="30" step="0.01" value="0"></label>
   <button id="tilt-reset" type="button">回到参考 α₀ / β₀</button><p id="tilt-error" role="status"></p></fieldset>
   </div><div class="tilt-map"><label>半视场角<select id="tilt-field"><option value="2">±2° 衍射细节</option><option value="5">±5° 精调</option><option value="35" selected>±35° 导航</option><option value="60">±60° 广角</option></select></label>
-  <label><input id="tilt-spots" type="checkbox" checked> 显示 Si 衍射位置</label><canvas id="tilt-canvas" width="800" height="800" aria-label="随双倾角实时更新的菊池中心线、菊池极和 Si 衍射位置"></canvas>
-  <p>青色为菊池中心线，红色为目标；紫色为衍射位置。000 固定在图中央。目标晶面模式将该面中心线通过 000。</p>
+  <label><input id="tilt-spots" type="checkbox" checked> 显示 Si 衍射位置</label><label><input id="tilt-spot-labels" type="checkbox" checked> 标注衍射斑点 (hkl)</label><label>查询当前衍射斑点<select id="tilt-spot-select"><option value="">选择斑点</option></select></label><p id="tilt-spot-info" role="status">可点击紫色斑点查看晶面指数。</p><canvas id="tilt-canvas" width="800" height="800" aria-label="随双倾角实时更新的菊池中心线、菊池极和 Si 衍射位置"></canvas>
+  <p>青色为菊池中心线，红色为目标；紫色为衍射位置及对应 (hkl) 指数；可点击或从列表查询。密集时切换到 ±2° 或 ±5° 查看。000 固定在图中央。目标晶面模式将该面中心线通过 000。</p>
   <p class="detail">Si 200 kV，a = 0.5431 nm。衍射按金刚石消光及 |h|、|k|、|l| ≤ 8 筛选，以弹性球径向偏离 ≤ 0.15 nm⁻¹ 显示离轴反射；透明度仅表示几何接近程度，不是强度。未模拟带宽、动力学、多重散射和样品遮挡。</p>
   <p class="detail">参考 <a href="https://github.com/din14970/ALPHABETA-TEM-tilting-suite" target="_blank" rel="noopener">ALPHABETA</a> 与 <a href="https://mompiou.github.io/pycotem/stereoproj/" target="_blank" rel="noopener">pycotem</a> 的问题定义；本模块由旋转方程独立实现，未复制其源码。</p>
   </div></div>`;
@@ -40,7 +40,7 @@
   document.head.append(style);
   const $=id=>document.getElementById('tilt-'+id),canvas=$('canvas'),ctx=canvas.getContext('2d');
   const data=window.KIKUCHI_MODEL,planes=C.planes(data.legends.FCC),poles=C.build(data.legends.FCC,data.faces);
-  let config=null,base=null,a=0,b=0,goal=null,raf=0,hit=[];
+  let config=null,base=null,a=0,b=0,goal=null,raf=0,hit=[],spotHit=[],selectedSpot='';
   function stop(){cancelAnimationFrame(raf);raf=0;}
   function clearGoal(){goal=null;$('play').disabled=$('go').disabled=true;}
   function number(id){const raw=$(id).value.trim(),n=Number(raw);if(!raw||!Number.isFinite(n))throw Error('请输入有效角度。');return n;}
@@ -56,6 +56,7 @@
     for(const p of planes)line(P.clipLine(...E.mv(u,p.normal),lim),'#408e9690');
     hit=[];ctx.font='16px sans-serif';
     for(const p of poles){const pt=P.projectPole(p.indices,basis,lim);if(!pt)continue;const [x,y]=xy(pt);hit.push({x,y,indices:p.indices});ctx.fillStyle='#247781';ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();if(hit.length<35)ctx.fillText(D.label(p.indices),x+6,y-7);}
+    spotHit=[];
     if($('spots').checked){
       const lambda=P.wavelength(200),k=1/lambda;
       for(let h=-8;h<=8;h++)for(let j=-8;j<=8;j++)for(let l=-8;l<=8;l++){
@@ -63,9 +64,27 @@
         const g=E.mv(u,[h/.5431,j/.5431,l/.5431]),s=Math.abs(Math.hypot(g[0],g[1],k+g[2])-k);
         if(s>.15||k+g[2]<=0)continue;
         const pt=[g[0]/(k+g[2]),g[1]/(k+g[2])];if(pt.some(v=>Math.abs(v)>lim))continue;
-        const [x,y]=xy(pt);ctx.globalAlpha=.3+.7*(1-s/.15);ctx.fillStyle='#932198';ctx.beginPath();ctx.arc(x,y,number('field')<=5?5:2.5,0,Math.PI*2);ctx.fill();
+        const [x,y]=xy(pt);spotHit.push({x,y,hkl:[h,j,l],id:[h,j,l].join(','),dNm:.5431/Math.hypot(h,j,l)});ctx.globalAlpha=.3+.7*(1-s/.15);ctx.fillStyle='#932198';ctx.beginPath();ctx.arc(x,y,number('field')<=5?5:2.5,0,Math.PI*2);ctx.fill();
       }ctx.globalAlpha=1;
+      const occupied=[{x:395,y:390,w:48,h:36}];ctx.font='14px sans-serif';
+      for(const p of spotHit.slice().sort((a,b)=>Number(b.id===selectedSpot)-Number(a.id===selectedSpot))){
+        const selected=p.id===selectedSpot;
+        if(selected){ctx.strokeStyle='#932198';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,9,0,Math.PI*2);ctx.stroke();}
+        if(!$('spot-labels').checked&&!selected)continue;
+        const value='('+p.hkl.join(' ')+')',w=ctx.measureText(value).width+6,h=20;
+        const offsets=[[9,-23],[9,8],[-w-9,-23],[-w-9,8],[9,-44],[-w-9,29],[9,29],[-w-9,-44]];
+        const candidates=offsets.map(([dx,dy])=>({x:Math.max(62,Math.min(738-w,p.x+dx)),y:Math.max(62,Math.min(738-h,p.y+dy)),w,h}));
+        const score=b=>occupied.reduce((n,a)=>n+Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x))*Math.max(0,Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y)),0);
+        candidates.sort((a,b)=>score(a)-score(b));const box=candidates[0];occupied.push(box);
+        ctx.strokeStyle='#b567b8';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(Math.max(box.x,Math.min(box.x+w,p.x)),Math.max(box.y,Math.min(box.y+h,p.y)));ctx.stroke();
+        ctx.fillStyle='#fffffff0';ctx.fillRect(box.x,box.y,w,h);ctx.fillStyle=selected?'#65066a':'#932198';ctx.fillText(value,box.x+3,box.y+15);
+      }
     }
+    const select=$('spot-select'),ids=spotHit.map(p=>p.id).join(';');
+    if(select.dataset.ids!==ids){select.replaceChildren(new Option('选择斑点',''),...spotHit.map(p=>new Option('('+p.hkl.join(' ')+')',p.id)));select.dataset.ids=ids;}
+    const selected=spotHit.find(p=>p.id===selectedSpot);if(!selected)selectedSpot='';select.value=selectedSpot;
+    $('spot-info').textContent=selected?'所选反射 ('+selected.hkl.join(' ')+')：d = '+selected.dNm.toFixed(5)+' nm。':'当前显示 '+spotHit.length+' 个非零衍射斑点；点击紫色斑点或从列表查询 (hkl)。';
+
     ctx.fillStyle='#252938';ctx.beginPath();ctx.arc(400,400,5,0,Math.PI*2);ctx.fill();ctx.fillText('000',409,420);
     try{
       const target=D.parse($('target').value).reduced,mode=$('mode').value;
@@ -100,8 +119,9 @@
   for(const key of ['a','b'])for(const id of [key,key+'r'])$(id).addEventListener('input',guard(()=>{stop();if(!base)throw Error('请先建立参考取向。');const v=number(id);if(!E.withinLimits(key==='a'?v:a,key==='b'?v:b,config)){sync();throw Error(config.combined?'角度超出限位：|α| + |β| 不得超过 30°，且须满足单轴范围。':'角度超出单轴限位。');}if(key==='a')a=v;else b=v;clearGoal();$('result').textContent='手动倾转后请重新计算目标。';sync();render();}));
   for(const id of ['target','mode'])$(id).addEventListener('input',()=>{stop();clearGoal();$('result').textContent='目标已更新，请计算。';render();});
   for(const id of ['combined','zone','ref','phi','a0','b0','amin','amax','bmin','bmax','sa','sb','azimuth'])$(id).addEventListener('input',()=>{stop();clearGoal();base=null;$('result').textContent='参考设置已改变，请重新建立参考取向。';$('error').textContent='图中仍为上次状态，尚未应用新参考。';});
-  for(const id of ['field','spots'])$(id).addEventListener('change',guard(render));
-  canvas.addEventListener('click',e=>{if(!base)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*800/r.width,y=(e.clientY-r.top)*800/r.height;const p=hit.map(p=>({...p,d:Math.hypot(p.x-x,p.y-y)})).sort((a,b)=>a.d-b.d)[0];if(p&&p.d<20){stop();clearGoal();$('target').value=p.indices.join(' ');$('mode').value='zone';$('result').textContent='已选择菊池极，请计算目标角度。';render();}});
+  $('spot-select').addEventListener('change',()=>{selectedSpot=$('spot-select').value;render();});
+  for(const id of ['field','spots','spot-labels'])$(id).addEventListener('change',guard(render));
+  canvas.addEventListener('click',e=>{if(!base)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*800/r.width,y=(e.clientY-r.top)*800/r.height;const nearest=spotHit.map(p=>({...p,d:Math.hypot(p.x-x,p.y-y)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<12){selectedSpot=nearest.id;render();return;}const p=hit.map(p=>({...p,d:Math.hypot(p.x-x,p.y-y)})).sort((a,b)=>a.d-b.d)[0];if(p&&p.d<20){stop();clearGoal();$('target').value=p.indices.join(' ');$('mode').value='zone';$('result').textContent='已选择菊池极，请计算目标角度。';render();}});
   window.addEventListener('kikuchi-target',e=>{if(!e.detail)return;stop();clearGoal();$('target').value=e.detail.join(' ');$('mode').value='zone';$('result').textContent='已载入球面所选极，请计算。';if(dialog.open)render();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
 })();
