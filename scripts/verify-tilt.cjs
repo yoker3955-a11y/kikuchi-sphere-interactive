@@ -55,3 +55,12 @@ test('synchronous linear paths remain inside convex combined limit; sequential m
  const start=[20,10],end=[10,20];assert(!E.withinLimits(start[0],end[1]));
  for(let i=0;i<=100;i++){const t=i/100;assert(E.withinLimits(start[0]+t*(end[0]-start[0]),start[1]+t*(end[1]-start[1])));}
 });
+
+test('optional combined limit restores single-axis solutions without bypassing axis bounds',()=>{
+ const base=E.reference([1,1,0],[2,-2,0],0);
+ assert.equal(E.solve({base,target:[1,2,1]}),null);
+ const s=E.solve({base,target:[1,2,1],combined:false});assert(s);assert(Math.abs(s.a)+Math.abs(s.b)>30);
+ assert(E.withinLimits(20,20,{combined:false}));assert(!E.withinLimits(20,31,{combined:false}));
+ assert.equal(E.solve({base,target:[1,2,1],combined:false,amin:-10,amax:10}),null);
+ assert(E.solve({base,target:[1,1,0],a0:20,b0:20,combined:false}));
+});
