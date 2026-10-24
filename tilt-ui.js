@@ -31,18 +31,18 @@
   <label>β °<input id="tilt-b" type="number" value="0" step="0.1"><input id="tilt-br" aria-label="β 滑块" type="range" min="-30" max="30" step="0.01" value="0"></label>
   <button id="tilt-reset" type="button">回到参考 α₀ / β₀</button><p id="tilt-error" role="status"></p></fieldset>
   </div><div class="tilt-map"><label>半视场角<select id="tilt-field"><option value="2">±2° 衍射细节</option><option value="5">±5° 精调</option><option value="35" selected>±35° 导航</option><option value="60">±60° 广角</option></select></label>
-  <label><input id="tilt-spots" type="checkbox" checked> 显示材料衍射位置</label><label><input id="tilt-spot-labels" type="checkbox" checked> 标注衍射斑点 (hkl)</label><label>查询当前衍射斑点<select id="tilt-spot-select"><option value="">选择斑点</option></select></label><p id="tilt-spot-info" role="status">可点击紫色斑点查看晶面指数。</p><p class="tilt-pole-title">当前视场菊池极目录（全部可见 [uvw]）</p><div id="tilt-pole-list" class="tilt-pole-list" role="group" aria-label="当前视场全部菊池极"></div><p id="tilt-pole-info" role="status">建立参考取向后显示全部可见菊池极；点击任一项即可设为目标。</p><fieldset class="tilt-plane-query"><legend>从当前衍射斑点任选两晶面</legend><label>晶面 A<select id="tilt-plane-first"></select></label><label>晶面 B<select id="tilt-plane-second"></select></label><p id="tilt-plane-result" role="status">选择两项后显示 d 值与晶面夹角。</p><small>仅列出当前视场内、符合所选晶相结构因子的反射。相机长度用于估算屏幕半径；夹角取晶面法向的 0–90° 锐角。</small></fieldset><canvas id="tilt-canvas" width="800" height="800" aria-label="随双倾角实时更新的菊池中心线、菊池极和材料衍射位置"></canvas>
+  <label><input id="tilt-spots" type="checkbox" checked> 显示材料衍射位置</label><label><input id="tilt-spot-labels" type="checkbox" checked> 标注衍射斑点 (hkl)</label><label>查询当前衍射斑点<select id="tilt-spot-select"><option value="">选择斑点</option></select></label><p id="tilt-spot-info" role="status">可点击紫色斑点查看晶面指数。</p><p class="detail">当前视场内每一个菊池极均以红色空心圆标记；点击红圈或其中心青点即可设为目标晶带轴。</p><fieldset class="tilt-plane-query"><legend>从当前衍射斑点任选两晶面</legend><label>晶面 A<select id="tilt-plane-first"></select></label><label>晶面 B<select id="tilt-plane-second"></select></label><p id="tilt-plane-result" role="status">选择两项后显示 d 值与晶面夹角。</p><small>仅列出当前视场内、符合所选晶相结构因子的反射。相机长度用于估算屏幕半径；夹角取晶面法向的 0–90° 锐角。</small></fieldset><canvas id="tilt-canvas" width="800" height="800" aria-label="随双倾角实时更新的菊池中心线、菊池极和材料衍射位置"></canvas>
   <p>青色线为当前材料低指数允许反射的几何中心线；青色点为由这些晶面相交得到的菊池极，点击任一点可设为目标。红色为目标；紫色为衍射位置及对应 (hkl) 指数。密集时切换到 ±2° 或 ±5° 查看。000 固定在图中央。目标晶面模式将该面中心线通过 000。</p>
   <p class="detail">反射按所选材料/晶相的理想结构因子及 |h|、|k|、|l| ≤ 6 筛选，以弹性球径向偏离 ≤ 0.15 nm⁻¹ 显示离轴反射；透明度仅表示几何接近程度，不是强度。未模拟带宽、动力学、多重散射和样品遮挡。</p>
   <p class="detail">参考 <a href="https://github.com/din14970/ALPHABETA-TEM-tilting-suite" target="_blank" rel="noopener">ALPHABETA</a> 与 <a href="https://mompiou.github.io/pycotem/stereoproj/" target="_blank" rel="noopener">pycotem</a> 的问题定义；本模块由旋转方程独立实现，未复制其源码。</p>
   </div></div>`;
   dialog.querySelector('.tilt-layout').before(dialog.querySelector('#tilt-equivalent-results'));
   document.body.append(dialog);
-  const style=document.createElement('style');style.textContent=`#tilt-dialog{width:min(1480px,99vw);max-width:99vw;height:96vh;max-height:96vh;box-sizing:border-box;overflow:auto;border:1px solid #aebfc2;border-radius:16px;padding:12px 16px;color:#17383e}#tilt-dialog::backdrop{background:#203b4990}.tilt-layout{display:grid;grid-template-columns:minmax(340px,430px) minmax(0,1fr);gap:16px;align-items:start}#tilt-dialog fieldset{border:1px solid #cad8da;border-radius:8px;margin:8px 0;padding:10px}#tilt-dialog label{display:block;margin:5px 0}#tilt-dialog input:not([type=checkbox]),#tilt-dialog select{display:block;box-sizing:border-box;width:100%;padding:5px;margin-top:3px}#tilt-dialog button{margin-top:5px;padding:7px}.tilt-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tilt-map{min-width:0}.tilt-map canvas{display:block;width:min(100%,58vh);height:auto;touch-action:manipulation;border:1px solid #ccd8db;margin:4px auto}.tilt-map>p{margin:8px 0}.tilt-pole-title{font-weight:700;margin:9px 0 4px}.tilt-pole-list{display:flex;flex-wrap:wrap;gap:5px;max-height:178px;overflow:auto;padding:6px;border:1px solid #cad8da;border-radius:6px;background:#f7fbfb}.tilt-pole-list button{margin:0!important;padding:4px 7px!important;border:1px solid #9ebfc3;border-radius:5px;background:#fff;color:#176d78;font:600 14px sans-serif;cursor:pointer}.tilt-pole-list button:hover,.tilt-pole-list button.selected{background:#176d78;color:#fff;border-color:#176d78}#tilt-dialog small{display:block;line-height:1.4;color:#45616a}#tilt-result,#tilt-error,#tilt-plane-result{white-space:pre-line;font-weight:600;margin:7px 0}#tilt-dialog legend{font-weight:700}#tilt-equivalent-results{overflow:auto;max-height:320px;margin:8px 0}#tilt-equivalent-results table{border-collapse:collapse;font-size:13px;white-space:nowrap}#tilt-equivalent-results th,#tilt-equivalent-results td{padding:6px;border:1px solid #cad8da;text-align:right}#tilt-equivalent-results th{background:#edf5f6}#tilt-equivalent-results caption{text-align:left;white-space:normal;font-weight:600;padding:6px 0}@media(max-width:760px){.tilt-layout{grid-template-columns:1fr}#tilt-dialog{padding:10px}.tilt-map{order:-1}.tilt-map canvas{width:min(100%,52vh)}}`;
+  const style=document.createElement('style');style.textContent=`#tilt-dialog{width:min(1480px,99vw);max-width:99vw;height:96vh;max-height:96vh;box-sizing:border-box;overflow:auto;border:1px solid #aebfc2;border-radius:16px;padding:12px 16px;color:#17383e}#tilt-dialog::backdrop{background:#203b4990}.tilt-layout{display:grid;grid-template-columns:minmax(340px,430px) minmax(0,1fr);gap:16px;align-items:start}#tilt-dialog fieldset{border:1px solid #cad8da;border-radius:8px;margin:8px 0;padding:10px}#tilt-dialog label{display:block;margin:5px 0}#tilt-dialog input:not([type=checkbox]),#tilt-dialog select{display:block;box-sizing:border-box;width:100%;padding:5px;margin-top:3px}#tilt-dialog button{margin-top:5px;padding:7px}.tilt-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tilt-map{min-width:0}.tilt-map canvas{display:block;width:min(100%,58vh);height:auto;touch-action:manipulation;border:1px solid #ccd8db;margin:4px auto}.tilt-map>p{margin:8px 0}#tilt-dialog small{display:block;line-height:1.4;color:#45616a}#tilt-result,#tilt-error,#tilt-plane-result{white-space:pre-line;font-weight:600;margin:7px 0}#tilt-dialog legend{font-weight:700}#tilt-equivalent-results{overflow:auto;max-height:320px;margin:8px 0}#tilt-equivalent-results table{border-collapse:collapse;font-size:13px;white-space:nowrap}#tilt-equivalent-results th,#tilt-equivalent-results td{padding:6px;border:1px solid #cad8da;text-align:right}#tilt-equivalent-results th{background:#edf5f6}#tilt-equivalent-results caption{text-align:left;white-space:normal;font-weight:600;padding:6px 0}@media(max-width:760px){.tilt-layout{grid-template-columns:1fr}#tilt-dialog{padding:10px}.tilt-map{order:-1}.tilt-map canvas{width:min(100%,52vh)}}`;
   document.head.append(style);
   const $=id=>document.getElementById('tilt-'+id),canvas=$('canvas'),ctx=canvas.getContext('2d');
   const data=window.KIKUCHI_MODEL,planes=C.planes(data.legends.FCC),poles=C.build(data.legends.FCC,data.faces);
-  let config=null,base=null,a=0,b=0,goal=null,raf=0,hit=[],spotHit=[],selectedSpot='',selectedPole='',material=null;
+  let config=null,base=null,a=0,b=0,goal=null,raf=0,hit=[],spotHit=[],selectedSpot='',material=null;
   function selectedMaterial(){return T.create($('material').value,{a:Number($('lattice-a').value),c:Number($('lattice-c').value)});}
   function targetVector(text,mode){const indices=D.parse(text).reduced;return {indices,vector:mode==='plane'?material.g(indices):material.zone(indices)};}
   function applyMaterial(){
@@ -50,7 +50,7 @@
     $('lattice-c').disabled=phase.system==='cubic';$('zone').value=phase.zone.join(' ');$('ref').value=phase.reflection.join(' ');material=selectedMaterial();
     $('material-note').textContent=`${phase.label} · ${phase.system==='cubic'?'立方':'六方'}晶系 · ${phase.rule==='diamond'?'金刚石结构消光':phase.rule.toUpperCase()+' 结构允许反射'}。`;
     $('equivalents').disabled=phase.system!=='cubic';if(phase.system!=='cubic')$('equivalents').checked=false;$('equivalents-help').textContent=phase.system==='cubic'?'适用于当前立方相：如 [112]、[121] 属于同一晶向族，但所需倾角不同。':'当前 HCP 相不使用立方对称等价晶向；为避免错误结果，该选项已关闭。';
-    selectedPole='';$('pole-list').replaceChildren();$('pole-list').dataset.ids='';$('pole-info').textContent='建立参考取向后显示全部可见菊池极；点击任一项即可设为目标。';base=null;clearGoal();$('result').textContent='材料已更新，请建立参考取向。';
+    base=null;clearGoal();$('result').textContent='材料已更新，请建立参考取向。';
   }
   function populateMaterials(){for(const phase of T.phases)$('material').append(new Option(phase.label,phase.id));$('material').value='si';applyMaterial();}
   function stop(){cancelAnimationFrame(raf);raf=0;}
@@ -80,7 +80,7 @@
         const box={x:x+5,y:y-18,w:width+4,h:18};if(!poleLabels.some(existing=>box.x<existing.x+existing.w+3&&box.x+box.w+3>existing.x&&box.y<existing.y+existing.h+3&&box.y+box.h+3>existing.y)){poleLabels.push(box);ctx.fillText(label,box.x,box.y+14);}
       }
     }
-    updatePoleCatalogue();
+    for(const pole of hit){ctx.strokeStyle='#bd3329';ctx.lineWidth=1.8;ctx.beginPath();ctx.arc(pole.x,pole.y,7,0,Math.PI*2);ctx.stroke();}
     spotHit=[];
     if($('spots').checked){
       const lambda=P.wavelength(number('kv')),k=1/lambda,camera=number('camera');
@@ -139,13 +139,7 @@
     firstSelect.dataset.ids=secondSelect.dataset.ids=ids;showPlanePair();
   }
   function selectPole(indices,message='已选择菊池极，请计算目标角度。'){
-    selectedPole=indices.join(',');stop();clearGoal();$('target').value=indices.join(' ');$('mode').value='zone';$('result').textContent=message;render();
-  }
-  function updatePoleCatalogue(){
-    const list=$('pole-list'),items=hit.slice().sort((a,b)=>a.indices.join(',').localeCompare(b.indices.join(','))),ids=items.map(item=>item.indices.join(',')).join(';');
-    if(list.dataset.ids!==ids){list.replaceChildren(...items.map(item=>{const button=document.createElement('button'),id=item.indices.join(',');button.type='button';button.dataset.id=id;button.textContent=D.label(item.indices);button.title=`设定目标晶带轴 ${D.label(item.indices)}`;button.onclick=()=>selectPole(item.indices,'已从菊池极目录选择目标，请计算目标角度。');return button;}));list.dataset.ids=ids;}
-    for(const button of list.children)button.classList.toggle('selected',button.dataset.id===selectedPole);
-    $('pole-info').textContent=`当前视场内 ${items.length} 个菊池极；以下目录逐项列出全部可见 [uvw]，青色点也可直接点击。`;
+    stop();clearGoal();$('target').value=indices.join(' ');$('mode').value='zone';$('result').textContent=message;render();
   }
   function initialize(){
     stop();clearGoal();base=null;
