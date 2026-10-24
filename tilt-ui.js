@@ -31,7 +31,7 @@
   <label>β °<input id="tilt-b" type="number" value="0" step="0.1"><input id="tilt-br" aria-label="β 滑块" type="range" min="-30" max="30" step="0.01" value="0"></label>
   <button id="tilt-reset" type="button">回到参考 α₀ / β₀</button><p id="tilt-error" role="status"></p></fieldset>
   </div><div class="tilt-map"><label>半视场角<select id="tilt-field"><option value="2">±2° 衍射细节</option><option value="5">±5° 精调</option><option value="35" selected>±35° 导航</option><option value="60">±60° 广角</option></select></label>
-  <label><input id="tilt-spots" type="checkbox" checked> 显示材料衍射位置</label><label><input id="tilt-spot-labels" type="checkbox" checked> 标注衍射斑点 (hkl)</label><label>查询当前衍射斑点<select id="tilt-spot-select"><option value="">选择斑点</option></select></label><p id="tilt-spot-info" role="status">可点击紫色斑点查看晶面指数。</p><fieldset class="tilt-plane-query"><legend>从当前衍射斑点任选两晶面</legend><label>晶面 A<select id="tilt-plane-first"></select></label><label>晶面 B<select id="tilt-plane-second"></select></label><p id="tilt-plane-result" role="status">选择两项后显示 d 值与晶面夹角。</p><small>仅列出当前视场内、符合所选晶相结构因子的反射。相机长度用于估算屏幕半径；夹角取晶面法向的 0–90° 锐角。</small></fieldset><canvas id="tilt-canvas" width="800" height="800" aria-label="随双倾角实时更新的菊池中心线、菊池极和材料衍射位置"></canvas>
+  <label><input id="tilt-spots" type="checkbox" checked> 显示材料衍射位置</label><label><input id="tilt-spot-labels" type="checkbox" checked> 标注衍射斑点 (hkl)</label><label>查询当前衍射斑点<select id="tilt-spot-select"><option value="">选择斑点</option></select></label><p id="tilt-spot-info" role="status">可点击紫色斑点查看晶面指数。</p><label>当前视场菊池极目录<select id="tilt-pole-select"><option value="">建立参考取向后显示</option></select></label><p id="tilt-pole-info" role="status">可点击青色菊池极或从目录选择，将其设为目标。</p><fieldset class="tilt-plane-query"><legend>从当前衍射斑点任选两晶面</legend><label>晶面 A<select id="tilt-plane-first"></select></label><label>晶面 B<select id="tilt-plane-second"></select></label><p id="tilt-plane-result" role="status">选择两项后显示 d 值与晶面夹角。</p><small>仅列出当前视场内、符合所选晶相结构因子的反射。相机长度用于估算屏幕半径；夹角取晶面法向的 0–90° 锐角。</small></fieldset><canvas id="tilt-canvas" width="800" height="800" aria-label="随双倾角实时更新的菊池中心线、菊池极和材料衍射位置"></canvas>
   <p>青色线为当前材料低指数允许反射的几何中心线；青色点为由这些晶面相交得到的菊池极，点击任一点可设为目标。红色为目标；紫色为衍射位置及对应 (hkl) 指数。密集时切换到 ±2° 或 ±5° 查看。000 固定在图中央。目标晶面模式将该面中心线通过 000。</p>
   <p class="detail">反射按所选材料/晶相的理想结构因子及 |h|、|k|、|l| ≤ 6 筛选，以弹性球径向偏离 ≤ 0.15 nm⁻¹ 显示离轴反射；透明度仅表示几何接近程度，不是强度。未模拟带宽、动力学、多重散射和样品遮挡。</p>
   <p class="detail">参考 <a href="https://github.com/din14970/ALPHABETA-TEM-tilting-suite" target="_blank" rel="noopener">ALPHABETA</a> 与 <a href="https://mompiou.github.io/pycotem/stereoproj/" target="_blank" rel="noopener">pycotem</a> 的问题定义；本模块由旋转方程独立实现，未复制其源码。</p>
@@ -42,7 +42,7 @@
   document.head.append(style);
   const $=id=>document.getElementById('tilt-'+id),canvas=$('canvas'),ctx=canvas.getContext('2d');
   const data=window.KIKUCHI_MODEL,planes=C.planes(data.legends.FCC),poles=C.build(data.legends.FCC,data.faces);
-  let config=null,base=null,a=0,b=0,goal=null,raf=0,hit=[],spotHit=[],selectedSpot='',material=null;
+  let config=null,base=null,a=0,b=0,goal=null,raf=0,hit=[],spotHit=[],selectedSpot='',selectedPole='',material=null;
   function selectedMaterial(){return T.create($('material').value,{a:Number($('lattice-a').value),c:Number($('lattice-c').value)});}
   function targetVector(text,mode){const indices=D.parse(text).reduced;return {indices,vector:mode==='plane'?material.g(indices):material.zone(indices)};}
   function applyMaterial(){
@@ -50,7 +50,7 @@
     $('lattice-c').disabled=phase.system==='cubic';$('zone').value=phase.zone.join(' ');$('ref').value=phase.reflection.join(' ');material=selectedMaterial();
     $('material-note').textContent=`${phase.label} · ${phase.system==='cubic'?'立方':'六方'}晶系 · ${phase.rule==='diamond'?'金刚石结构消光':phase.rule.toUpperCase()+' 结构允许反射'}。`;
     $('equivalents').disabled=phase.system!=='cubic';if(phase.system!=='cubic')$('equivalents').checked=false;$('equivalents-help').textContent=phase.system==='cubic'?'适用于当前立方相：如 [112]、[121] 属于同一晶向族，但所需倾角不同。':'当前 HCP 相不使用立方对称等价晶向；为避免错误结果，该选项已关闭。';
-    base=null;clearGoal();$('result').textContent='材料已更新，请建立参考取向。';
+    selectedPole='';$('pole-select').replaceChildren(new Option('建立参考取向后显示',''));$('pole-select').dataset.ids='';$('pole-info').textContent='可点击青色菊池极或从目录选择，将其设为目标。';base=null;clearGoal();$('result').textContent='材料已更新，请建立参考取向。';
   }
   function populateMaterials(){for(const phase of T.phases)$('material').append(new Option(phase.label,phase.id));$('material').value='si';applyMaterial();}
   function stop(){cancelAnimationFrame(raf);raf=0;}
@@ -80,6 +80,7 @@
         const box={x:x+5,y:y-18,w:width+4,h:18};if(!poleLabels.some(existing=>box.x<existing.x+existing.w+3&&box.x+box.w+3>existing.x&&box.y<existing.y+existing.h+3&&box.y+box.h+3>existing.y)){poleLabels.push(box);ctx.fillText(label,box.x,box.y+14);}
       }
     }
+    updatePoleCatalogue();
     spotHit=[];
     if($('spots').checked){
       const lambda=P.wavelength(number('kv')),k=1/lambda,camera=number('camera');
@@ -137,6 +138,14 @@
     secondSelect.value=spotHit.some(p=>p.id===previousSecond)?previousSecond:fallbackSecond;
     firstSelect.dataset.ids=secondSelect.dataset.ids=ids;showPlanePair();
   }
+  function selectPole(indices,message='已选择菊池极，请计算目标角度。'){
+    selectedPole=indices.join(',');stop();clearGoal();$('target').value=indices.join(' ');$('mode').value='zone';$('result').textContent=message;render();
+  }
+  function updatePoleCatalogue(){
+    const select=$('pole-select'),items=hit.slice().sort((a,b)=>a.indices.join(',').localeCompare(b.indices.join(','))),ids=items.map(item=>item.indices.join(',')).join(';');
+    if(select.dataset.ids!==ids){const previous=selectedPole||select.value;select.replaceChildren(new Option('选择菊池极',''),...items.map(item=>new Option(D.label(item.indices),item.indices.join(','))));select.dataset.ids=ids;select.value=items.some(item=>item.indices.join(',')===previous)?previous:'';}
+    $('pole-info').textContent=`当前视场内 ${items.length} 个菊池极；青色点均可点击，目录列出全部可见 [uvw]。`;
+  }
   function initialize(){
     stop();clearGoal();base=null;
     material=selectedMaterial();
@@ -180,9 +189,11 @@
   for(const id of ['combined','zone','ref','phi','a0','b0','amin','amax','bmin','bmax','sa','sb','azimuth','lattice-a','lattice-c'])$(id).addEventListener('input',()=>{stop();clearGoal();base=null;$('result').textContent='参考设置已改变，请重新建立参考取向。';$('error').textContent='图中仍为上次状态，尚未应用新参考。';});
   $('material').addEventListener('change',applyMaterial);for(const id of ['kv','camera'])$(id).addEventListener('input',()=>{if(base)render();});
   $('spot-select').addEventListener('change',()=>{selectedSpot=$('spot-select').value;render();});
+  $('pole-select').addEventListener('change',()=>{const p=hit.find(item=>item.indices.join(',')===$('pole-select').value);if(p)selectPole(p.indices,'已从菊池极目录选择目标，请计算目标角度。');});
   for(const id of ['plane-first','plane-second'])$(id).addEventListener('change',showPlanePair);
   for(const id of ['field','spots','spot-labels'])$(id).addEventListener('change',guard(render));
-  canvas.addEventListener('click',e=>{if(!base)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*800/r.width,y=(e.clientY-r.top)*800/r.height;const nearest=spotHit.map(p=>({...p,d:Math.hypot(p.x-x,p.y-y)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<12){selectedSpot=nearest.id;render();return;}const p=hit.map(p=>({...p,d:Math.hypot(p.x-x,p.y-y)})).sort((a,b)=>a.d-b.d)[0];if(p&&p.d<20){stop();clearGoal();$('target').value=p.indices.join(' ');$('mode').value='zone';$('result').textContent='已选择菊池极，请计算目标角度。';render();}});
+  canvas.addEventListener('click',e=>{if(!base)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*800/r.width,y=(e.clientY-r.top)*800/r.height;const nearest=spotHit.map(p=>({...p,d:Math.hypot(p.x-x,p.y-y)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<12){selectedSpot=nearest.id;render();return;}const p=hit.map(p=>({...p,d:Math.hypot(p.x-x,p.y-y)})).sort((a,b)=>a.d-b.d)[0];if(p&&p.d<20)selectPole(p.indices);});
   window.addEventListener('kikuchi-target',e=>{if(!e.detail)return;stop();clearGoal();$('target').value=e.detail.join(' ');$('mode').value='zone';$('result').textContent='已载入球面所选极，请计算。';if(dialog.open)render();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
 })();
+
