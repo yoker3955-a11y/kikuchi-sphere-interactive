@@ -23,7 +23,7 @@
   <label>α 读数方向<select id="tilt-sa"><option value="1">同右手正向</option><option value="-1">反向</option></select></label><label>β 读数方向<select id="tilt-sb"><option value="1">同右手正向</option><option value="-1">反向</option></select></label></details>
   <button id="tilt-init" type="button">建立参考取向</button></fieldset>
   <fieldset><legend>2 指定目标</legend><label>目标条件<select id="tilt-mode"><option value="zone">晶带轴平行电子束</option><option value="plane">晶面平行电子束</option></select></label><label>目标指数<input id="tilt-target" value="1 2 1"></label>
-  <label><input id="tilt-equivalents" type="checkbox"> 同时计算对称等价晶带轴</label><small>适用于 Si 立方对称：如 [112]、[121] 属于同一晶向族，但所需倾角不同。勾选后列表比较，由你选择采用；不勾选时仅计算指定方向。可点击下图菊池极设置目标。</small>
+  <label><input id="tilt-equivalents" type="checkbox"> 同时计算对称等价晶带轴</label><small id="tilt-equivalents-help">仅适用于当前内置立方相：如 [112]、[121] 属于同一晶向族，但所需倾角不同。HCP 相不会套用立方对称操作。</small>
   <button id="tilt-solve" type="button">计算目标 α / β</button><p id="tilt-result" role="status"></p>
   <div id="tilt-equivalent-results" hidden></div><button id="tilt-play" type="button" disabled>播放倾转</button> <button id="tilt-stop" type="button">停止</button> <button id="tilt-go" type="button" disabled>到达计算终点</button>
   </fieldset><fieldset><legend>3 手动倾转与路径检查</legend>
@@ -49,6 +49,7 @@
     const phase=T.byId($('material').value);$('lattice-a').value=phase.a;$('lattice-c').value=phase.c||phase.a;
     $('lattice-c').disabled=phase.system==='cubic';$('zone').value=phase.zone.join(' ');$('ref').value=phase.reflection.join(' ');material=selectedMaterial();
     $('material-note').textContent=`${phase.label} · ${phase.system==='cubic'?'立方':'六方'}晶系 · ${phase.rule==='diamond'?'金刚石结构消光':phase.rule.toUpperCase()+' 结构允许反射'}。`;
+    $('equivalents').disabled=phase.system!=='cubic';if(phase.system!=='cubic')$('equivalents').checked=false;$('equivalents-help').textContent=phase.system==='cubic'?'适用于当前立方相：如 [112]、[121] 属于同一晶向族，但所需倾角不同。':'当前 HCP 相不使用立方对称等价晶向；为避免错误结果，该选项已关闭。';
     base=null;clearGoal();$('result').textContent='材料已更新，请建立参考取向。';
   }
   function populateMaterials(){for(const phase of T.phases)$('material').append(new Option(phase.label,phase.id));$('material').value='si';applyMaterial();}
@@ -58,7 +59,7 @@
   function args(){return {base,target:targetVector($('target').value,$('mode').value).vector,...config,a,b,mode:$('mode').value};}
   function sync(){for(const [key,value,other]of [['a',a,b],['b',b,a]]){const remaining=config.combined?Math.max(0,30-Math.abs(other)):Infinity;for(const id of [key,key+'r']){$(id).min=Math.max(config[key+'min'],-remaining);$(id).max=Math.min(config[key+'max'],remaining);}$(key).value=value.toFixed(4);$(key+'r').value=value;}}
   function render(){
-    $('equivalents').disabled=true;
+    const cubicEquivalents=material.system==='cubic'&&$('mode').value==='zone';$('equivalents').disabled=!cubicEquivalents;if(!cubicEquivalents)$('equivalents').checked=false;
     if(!base)return;
     const u=E.mm(E.rz(config.azimuth),E.orientation(base,a,b,config.a0,config.b0,config.sa,config.sb)),basis=E.tr(u),lim=Math.tan(number('field')*Math.PI/180);
     const xy=p=>[400+p[0]/lim*340,400-p[1]/lim*340];
@@ -142,7 +143,9 @@
   populateMaterials();
   $('init').onclick=guard(initialize);
   function showEquivalents(){
-    const rows=E.equivalentSolutions(args()),host=$('equivalent-results');host.replaceChildren();host.hidden=false;
+    if(material.system!=='cubic'||$('mode').value!=='zone')return;
+    const options={...args(),mode:'zone'},rawTarget=D.parse($('target').value).reduced;
+    const rows=E.cubicEquivalents(rawTarget).map(indices=>{const target=material.zone(indices),solution=E.solve({...options,target}),geometric=solution||E.solve({...options,target,amin:-180,amax:180,bmin:-180,bmax:180,combined:false});return {indices,solution,geometric};}),host=$('equivalent-results');host.replaceChildren();host.hidden=false;
     const table=document.createElement('table'),caption=table.createCaption();
     caption.textContent=`共 ${rows.length} 个等价方向，${rows.filter(r=>r.solution).length} 个在当前限位内可达。Δ 相对本次计算起点 α=${a.toFixed(3)}°、β=${b.toFixed(3)}°；超限行仅列几何解，不可采用。每个方向列一个较近解。`;
     const head=table.createTHead().insertRow();for(const text of ['带轴 [uvw]','α / °','β / °','Δα / °','Δβ / °','|α|+|β| / °','状态','操作']){const th=document.createElement('th');th.scope='col';th.textContent=text;head.append(th);}
@@ -150,8 +153,8 @@
     rows.sort((x,y)=>Number(!!y.solution)-Number(!!x.solution)||(x.geometric?.cost??Infinity)-(y.geometric?.cost??Infinity));
     for(const row of rows){
       const tr=body.insertRow(),s=row.geometric,fmt=x=>Math.abs(x)<.00005?'0.0000':x.toFixed(4);
-      for(const text of [D.label(row.target),s?fmt(s.a):'—',s?fmt(s.b):'—',s?fmt(s.a-a):'—',s?fmt(s.b-b):'—',s?fmt(Math.abs(s.a)+Math.abs(s.b)):'—',row.solution?'可达':s?'超限（几何解）':'无解'])tr.insertCell().textContent=text;
-      const button=document.createElement('button');button.type='button';button.textContent='采用 '+D.label(row.target);button.disabled=!row.solution;button.onclick=guard(()=>{$('target').value=row.target.join(' ');calculate();});tr.insertCell().append(button);
+      for(const text of [D.label(row.indices),s?fmt(s.a):'—',s?fmt(s.b):'—',s?fmt(s.a-a):'—',s?fmt(s.b-b):'—',s?fmt(Math.abs(s.a)+Math.abs(s.b)):'—',row.solution?'可达':s?'超限（几何解）':'无解'])tr.insertCell().textContent=text;
+      const button=document.createElement('button');button.type='button';button.textContent='采用 '+D.label(row.indices);button.disabled=!row.solution;button.onclick=guard(()=>{$('target').value=row.indices.join(' ');calculate();});tr.insertCell().append(button);
     }
     host.append(table);
   }
@@ -171,3 +174,4 @@
   window.addEventListener('kikuchi-target',e=>{if(!e.detail)return;stop();clearGoal();$('target').value=e.detail.join(' ');$('mode').value='zone';$('result').textContent='已载入球面所选极，请计算。';if(dialog.open)render();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
 })();
+
