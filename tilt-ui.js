@@ -32,7 +32,7 @@
   <button id="tilt-reset" type="button">回到参考 α₀ / β₀</button><p id="tilt-error" role="status"></p></fieldset>
   </div><div class="tilt-map"><label>半视场角<select id="tilt-field"><option value="2">±2° 衍射细节</option><option value="5">±5° 精调</option><option value="35" selected>±35° 导航</option><option value="60">±60° 广角</option></select></label>
   <label><input id="tilt-spots" type="checkbox" checked> 显示材料衍射位置</label><label><input id="tilt-spot-labels" type="checkbox" checked> 标注衍射斑点 (hkl)</label><label>查询当前衍射斑点<select id="tilt-spot-select"><option value="">选择斑点</option></select></label><p id="tilt-spot-info" role="status">可点击紫色斑点查看晶面指数。</p><fieldset class="tilt-plane-query"><legend>从当前衍射斑点任选两晶面</legend><label>晶面 A<select id="tilt-plane-first"></select></label><label>晶面 B<select id="tilt-plane-second"></select></label><p id="tilt-plane-result" role="status">选择两项后显示 d 值与晶面夹角。</p><small>仅列出当前视场内、符合所选晶相结构因子的反射。相机长度用于估算屏幕半径；夹角取晶面法向的 0–90° 锐角。</small></fieldset><canvas id="tilt-canvas" width="800" height="800" aria-label="随双倾角实时更新的菊池中心线、菊池极和材料衍射位置"></canvas>
-  <p>青色为当前材料允许反射的几何中心线，红色为目标；紫色为衍射位置及对应 (hkl) 指数；可点击或从列表查询。密集时切换到 ±2° 或 ±5° 查看。000 固定在图中央。目标晶面模式将该面中心线通过 000。</p>
+  <p>青色线为当前材料低指数允许反射的几何中心线；青色点为由这些晶面相交得到的菊池极，点击任一点可设为目标。红色为目标；紫色为衍射位置及对应 (hkl) 指数。密集时切换到 ±2° 或 ±5° 查看。000 固定在图中央。目标晶面模式将该面中心线通过 000。</p>
   <p class="detail">反射按所选材料/晶相的理想结构因子及 |h|、|k|、|l| ≤ 6 筛选，以弹性球径向偏离 ≤ 0.15 nm⁻¹ 显示离轴反射；透明度仅表示几何接近程度，不是强度。未模拟带宽、动力学、多重散射和样品遮挡。</p>
   <p class="detail">参考 <a href="https://github.com/din14970/ALPHABETA-TEM-tilting-suite" target="_blank" rel="noopener">ALPHABETA</a> 与 <a href="https://mompiou.github.io/pycotem/stereoproj/" target="_blank" rel="noopener">pycotem</a> 的问题定义；本模块由旋转方程独立实现，未复制其源码。</p>
   </div></div>`;
@@ -66,8 +66,14 @@
     ctx.fillStyle='#fff';ctx.fillRect(0,0,800,800);ctx.strokeStyle='#d4dfe1';ctx.strokeRect(60,60,680,680);
     ctx.save();ctx.beginPath();ctx.rect(60,60,680,680);ctx.clip();
     const line=(segment,color,width=1)=>{if(!segment)return;ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(...xy(segment[0]));ctx.lineTo(...xy(segment[1]));ctx.stroke();};
-    for(const reflection of material.reflections(2).slice(0,36))line(P.clipLine(...E.mv(u,reflection.g),lim),'#408e9690');
-    hit=[];ctx.font='16px sans-serif';
+    const mapPlanes=material.uniqueReflections(3);
+    for(const reflection of mapPlanes)line(P.clipLine(...E.mv(u,reflection.g),lim),'#408e9690');
+    hit=[];ctx.font='16px sans-serif';const poleLabels=[];
+    for(const pole of material.poles(3,3)){
+      const pt=P.projectPole(material.zone(pole.indices),basis,lim);if(!pt)continue;const [x,y]=xy(pt),label=D.label(pole.indices),width=ctx.measureText(label).width;
+      hit.push({x,y,indices:pole.indices});ctx.fillStyle='#247781';ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);ctx.fill();
+      const box={x:x+5,y:y-18,w:width+4,h:18};if(!poleLabels.some(existing=>box.x<existing.x+existing.w+3&&box.x+box.w+3>existing.x&&box.y<existing.y+existing.h+3&&box.y+box.h+3>existing.y)){poleLabels.push(box);ctx.fillText(label,box.x,box.y+14);}
+    }
     spotHit=[];
     if($('spots').checked){
       const lambda=P.wavelength(number('kv')),k=1/lambda,camera=number('camera');
