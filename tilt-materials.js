@@ -54,7 +54,9 @@
       const unique=new Map();for(const reflection of reflections(limit)){const hkl=canonicalPlane(reflection.hkl),id=hkl.join(',');if(!unique.has(id))unique.set(id,{hkl,g:g(hkl),dNm:d(hkl)});}
       return [...unique.values()].sort((x,y)=>y.dNm-x.dNm);
     }
-    function poles(planeLimit=3,axisLimit=6){
+    // Do not cap [uvw] in the map path: every intersection of the displayed
+    // centre-line set must remain available, including higher-index poles.
+    function poles(planeLimit=3,axisLimit=Infinity){
       const unique=new Map(),planeSet=uniqueReflections(planeLimit);
       const add=v=>{const indices=reduce(v);if(!indices.some(Boolean)||indices.some(value=>Math.abs(value)>axisLimit))return;unique.set(indices.join(','),{indices});};
       for(let i=0;i<planeSet.length;i++)for(let j=i+1;j<planeSet.length;j++){const v=cross(planeSet[i].hkl,planeSet[j].hkl);add(v);add(v.map(value=>-value));}
@@ -66,3 +68,4 @@
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   if(typeof window!=='undefined')window.KikuchiTiltMaterials=api;
 })();
+
