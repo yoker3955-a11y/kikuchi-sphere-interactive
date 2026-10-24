@@ -25,15 +25,12 @@
   <label><input id="tilt-equivalents" type="checkbox"> 同时计算对称等价晶带轴</label><small>适用于 Si 立方对称：如 [112]、[121] 属于同一晶向族，但所需倾角不同。勾选后列表比较，由你选择采用；不勾选时仅计算指定方向。可点击下图菊池极设置目标。</small>
   <button id="tilt-solve" type="button">计算目标 α / β</button><p id="tilt-result" role="status"></p>
   <div id="tilt-equivalent-results" hidden></div><button id="tilt-play" type="button" disabled>播放倾转</button> <button id="tilt-stop" type="button">停止</button> <button id="tilt-go" type="button" disabled>到达计算终点</button>
-  </fieldset><fieldset><legend>晶面参数 · 两面任选</legend>
-  <label>晶面 1 (hkl)<input id="tilt-plane-one" value="1 1 1" aria-describedby="tilt-plane-help"></label><label>晶面 2 (hkl)<input id="tilt-plane-two" value="2 2 0"></label><label>晶格常数 a / nm<input id="tilt-plane-lattice" type="number" min="0.2" max="2" step="0.0001" value="0.5431"></label>
-  <button id="tilt-plane-calculate" type="button">计算 d 值与夹角</button><p id="tilt-plane-result" role="status"></p><small id="tilt-plane-help">适用于当前立方晶系：d = a / √(h²+k²+l²)。夹角由两晶面法向计算，输出 0–90° 的晶面锐角；不受当前 α / β 姿态影响。</small>
   </fieldset><fieldset><legend>3 手动倾转与路径检查</legend>
   <label>α °<input id="tilt-a" type="number" value="0" step="0.1"><input id="tilt-ar" aria-label="α 滑块" type="range" min="-35" max="35" step="0.01" value="0"></label>
   <label>β °<input id="tilt-b" type="number" value="0" step="0.1"><input id="tilt-br" aria-label="β 滑块" type="range" min="-30" max="30" step="0.01" value="0"></label>
   <button id="tilt-reset" type="button">回到参考 α₀ / β₀</button><p id="tilt-error" role="status"></p></fieldset>
   </div><div class="tilt-map"><label>半视场角<select id="tilt-field"><option value="2">±2° 衍射细节</option><option value="5">±5° 精调</option><option value="35" selected>±35° 导航</option><option value="60">±60° 广角</option></select></label>
-  <label><input id="tilt-spots" type="checkbox" checked> 显示 Si 衍射位置</label><label><input id="tilt-spot-labels" type="checkbox" checked> 标注衍射斑点 (hkl)</label><label>查询当前衍射斑点<select id="tilt-spot-select"><option value="">选择斑点</option></select></label><p id="tilt-spot-info" role="status">可点击紫色斑点查看晶面指数。</p><canvas id="tilt-canvas" width="800" height="800" aria-label="随双倾角实时更新的菊池中心线、菊池极和 Si 衍射位置"></canvas>
+  <label><input id="tilt-spots" type="checkbox" checked> 显示 Si 衍射位置</label><label><input id="tilt-spot-labels" type="checkbox" checked> 标注衍射斑点 (hkl)</label><label>查询当前衍射斑点<select id="tilt-spot-select"><option value="">选择斑点</option></select></label><p id="tilt-spot-info" role="status">可点击紫色斑点查看晶面指数。</p><fieldset class="tilt-plane-query"><legend>从当前衍射斑点任选两晶面</legend><label>晶面 A<select id="tilt-plane-first"></select></label><label>晶面 B<select id="tilt-plane-second"></select></label><p id="tilt-plane-result" role="status">选择两项后显示 d 值与晶面夹角。</p><small>仅列出当前视场内的 Si 允许反射。d 值按 a = 0.5431 nm 计算；夹角取两晶面法向的 0–90° 锐角。</small></fieldset><canvas id="tilt-canvas" width="800" height="800" aria-label="随双倾角实时更新的菊池中心线、菊池极和 Si 衍射位置"></canvas>
   <p>青色为菊池中心线，红色为目标；紫色为衍射位置及对应 (hkl) 指数；可点击或从列表查询。密集时切换到 ±2° 或 ±5° 查看。000 固定在图中央。目标晶面模式将该面中心线通过 000。</p>
   <p class="detail">Si 200 kV，a = 0.5431 nm。衍射按金刚石消光及 |h|、|k|、|l| ≤ 8 筛选，以弹性球径向偏离 ≤ 0.15 nm⁻¹ 显示离轴反射；透明度仅表示几何接近程度，不是强度。未模拟带宽、动力学、多重散射和样品遮挡。</p>
   <p class="detail">参考 <a href="https://github.com/din14970/ALPHABETA-TEM-tilting-suite" target="_blank" rel="noopener">ALPHABETA</a> 与 <a href="https://mompiou.github.io/pycotem/stereoproj/" target="_blank" rel="noopener">pycotem</a> 的问题定义；本模块由旋转方程独立实现，未复制其源码。</p>
@@ -88,6 +85,7 @@
     const select=$('spot-select'),ids=spotHit.map(p=>p.id).join(';');
     if(select.dataset.ids!==ids){select.replaceChildren(new Option('选择斑点',''),...spotHit.map(p=>new Option('('+p.hkl.join(' ')+')',p.id)));select.dataset.ids=ids;}
     const selected=spotHit.find(p=>p.id===selectedSpot);if(!selected)selectedSpot='';select.value=selectedSpot;
+    updatePlaneChoices();
     $('spot-info').textContent=selected?'所选反射 ('+selected.hkl.join(' ')+')：d = '+selected.dNm.toFixed(5)+' nm。':'当前显示 '+spotHit.length+' 个非零衍射斑点；点击紫色斑点或从列表查询 (hkl)。';
 
     ctx.fillStyle='#252938';ctx.beginPath();ctx.arc(400,400,5,0,Math.PI*2);ctx.fill();ctx.fillText('000',409,420);
@@ -102,11 +100,21 @@
     if(window.KikuchiStageView)window.KikuchiStageView(E.quaternion(u));
   }
   function guard(fn){return ()=>{try{fn();}catch(e){$('error').textContent=e.message;}};}
-  function calculatePlanes(){
-    const first=D.parse($('plane-one').value).reduced,second=D.parse($('plane-two').value).reduced,lattice=number('plane-lattice');
-    if(lattice<.2||lattice>2)throw Error('晶格常数范围为 0.2–2 nm。');
-    const metrics=M.calculate(first,second,lattice);
-    $('plane-result').textContent=`晶面 1 (${first.join(' ')})：d₁ = ${metrics.dFirst.toFixed(5)} nm\n晶面 2 (${second.join(' ')})：d₂ = ${metrics.dSecond.toFixed(5)} nm\n两晶面夹角 φ = ${metrics.angleDeg.toFixed(4)}°（锐角）`;
+  function showPlanePair(){
+    const first=spotHit.find(p=>p.id===$('plane-first').value),second=spotHit.find(p=>p.id===$('plane-second').value);
+    if(!first||!second){$('plane-result').textContent='当前视场内至少需要两个 Si 允许反射。可增大半视场或调整倾转。';return;}
+    const metrics=M.calculate(first.hkl,second.hkl,.5431);
+    $('plane-result').textContent=`晶面 A (${first.hkl.join(' ')})：d = ${metrics.dFirst.toFixed(5)} nm\n晶面 B (${second.hkl.join(' ')})：d = ${metrics.dSecond.toFixed(5)} nm\n两晶面夹角 φ = ${metrics.angleDeg.toFixed(4)}°（锐角）`;
+  }
+  function updatePlaneChoices(){
+    const firstSelect=$('plane-first'),secondSelect=$('plane-second'),ids=spotHit.map(p=>p.id).join(';');
+    if(firstSelect.dataset.ids===ids){showPlanePair();return;}
+    const previousFirst=firstSelect.value,previousSecond=secondSelect.value,options=spotHit.map(p=>new Option('('+p.hkl.join(' ')+')',p.id));
+    firstSelect.replaceChildren(...options.map(option=>option.cloneNode(true)));secondSelect.replaceChildren(...options);
+    const fallbackFirst=selectedSpot||spotHit[0]?.id||'',fallbackSecond=spotHit.find(p=>p.id!==fallbackFirst)?.id||fallbackFirst;
+    firstSelect.value=spotHit.some(p=>p.id===previousFirst)?previousFirst:fallbackFirst;
+    secondSelect.value=spotHit.some(p=>p.id===previousSecond)?previousSecond:fallbackSecond;
+    firstSelect.dataset.ids=secondSelect.dataset.ids=ids;showPlanePair();
   }
   function initialize(){
     stop();clearGoal();base=null;
@@ -123,7 +131,6 @@
   $('open').onclick=()=>{dialog.showModal();if(!base)guard(initialize)();else render();};
   $('close').onclick=()=>{stop();dialog.close();};dialog.addEventListener('close',stop);
   $('init').onclick=guard(initialize);
-  $('plane-calculate').onclick=()=>{try{calculatePlanes();}catch(error){$('plane-result').textContent=error.message;}};
   function showEquivalents(){
     const rows=E.equivalentSolutions(args()),host=$('equivalent-results');host.replaceChildren();host.hidden=false;
     const table=document.createElement('table'),caption=table.createCaption();
@@ -147,8 +154,10 @@
   for(const id of ['equivalents','target','mode'])$(id).addEventListener('input',()=>{stop();clearGoal();$('result').textContent='目标已更新，请计算。';render();});
   for(const id of ['combined','zone','ref','phi','a0','b0','amin','amax','bmin','bmax','sa','sb','azimuth'])$(id).addEventListener('input',()=>{stop();clearGoal();base=null;$('result').textContent='参考设置已改变，请重新建立参考取向。';$('error').textContent='图中仍为上次状态，尚未应用新参考。';});
   $('spot-select').addEventListener('change',()=>{selectedSpot=$('spot-select').value;render();});
+  for(const id of ['plane-first','plane-second'])$(id).addEventListener('change',showPlanePair);
   for(const id of ['field','spots','spot-labels'])$(id).addEventListener('change',guard(render));
   canvas.addEventListener('click',e=>{if(!base)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*800/r.width,y=(e.clientY-r.top)*800/r.height;const nearest=spotHit.map(p=>({...p,d:Math.hypot(p.x-x,p.y-y)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<12){selectedSpot=nearest.id;render();return;}const p=hit.map(p=>({...p,d:Math.hypot(p.x-x,p.y-y)})).sort((a,b)=>a.d-b.d)[0];if(p&&p.d<20){stop();clearGoal();$('target').value=p.indices.join(' ');$('mode').value='zone';$('result').textContent='已选择菊池极，请计算目标角度。';render();}});
   window.addEventListener('kikuchi-target',e=>{if(!e.detail)return;stop();clearGoal();$('target').value=e.detail.join(' ');$('mode').value='zone';$('result').textContent='已载入球面所选极，请计算。';if(dialog.open)render();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
 })();
+
