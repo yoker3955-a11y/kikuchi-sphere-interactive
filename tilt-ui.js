@@ -74,7 +74,8 @@
     }else{
       const mapPlanes=material.uniqueReflections(3);for(const reflection of mapPlanes)line(P.clipLine(...E.mv(u,reflection.g),lim),'#408e9690');
       const poleLabels=[];
-      for(const pole of material.poles(3,3)){
+      // The pole set must match every intersection of the centre lines just drawn.
+      for(const pole of material.poles(3)){
         const pt=P.projectPole(material.zone(pole.indices),basis,lim);if(!pt)continue;const [x,y]=xy(pt),label=D.label(pole.indices),width=ctx.measureText(label).width;
         hit.push({x,y,indices:pole.indices});ctx.fillStyle='#247781';ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);ctx.fill();
         const box={x:x+5,y:y-18,w:width+4,h:18};if(!poleLabels.some(existing=>box.x<existing.x+existing.w+3&&box.x+box.w+3>existing.x&&box.y<existing.y+existing.h+3&&box.y+box.h+3>existing.y)){poleLabels.push(box);ctx.fillText(label,box.x,box.y+14);}
