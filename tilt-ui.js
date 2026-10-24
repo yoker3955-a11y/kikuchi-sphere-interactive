@@ -101,8 +101,8 @@
     try{
       const target=targetVector($('target').value,$('mode').value),mode=$('mode').value;
       if(mode==='plane')line(P.clipLine(...E.mv(u,target.vector),lim),'#bd3329',3);
-      else {const pt=P.projectPole(target.vector,basis,lim);if(pt){const [x,y]=xy(pt);ctx.strokeStyle='#bd3329';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#bd3329';ctx.fillText('目标 '+D.label(target.indices),x+13,y+20);}}
-      $('error').textContent=`当前 α ${a.toFixed(3)}° / β ${b.toFixed(3)}°\n${config.combined?`组合占用 ${(Math.abs(a)+Math.abs(b)).toFixed(3)}° / 30°`:'组合限位未启用，仅检查单轴范围'}\n${mode==='zone'?'目标带轴失配':'晶面偏离平行'} ${E.residual(u,target.vector,mode).toFixed(5)}°`;
+      else {const pt=P.projectPole(target.vector,basis,lim);if(pt){const [x,y]=xy(pt),atCenter=Math.hypot(...pt)<Math.tan(.75*Math.PI/180);ctx.strokeStyle='#bd3329';ctx.lineWidth=atCenter?4:3;ctx.beginPath();ctx.arc(x,y,atCenter?15:10,0,Math.PI*2);ctx.stroke();if(atCenter){ctx.beginPath();ctx.arc(x,y,8,0,Math.PI*2);ctx.stroke();const label='目标 '+D.label(target.indices)+' 已与 000 重合';ctx.font='bold 15px sans-serif';const width=ctx.measureText(label).width+12;ctx.fillStyle='#fffffff2';ctx.fillRect(x+19,y-31,width,23);ctx.fillStyle='#bd3329';ctx.fillText(label,x+25,y-14);}else{ctx.fillStyle='#bd3329';ctx.fillText('目标 '+D.label(target.indices),x+13,y+20);}}}
+      const residual=E.residual(u,target.vector,mode);$('error').textContent=`当前 α ${a.toFixed(3)}° / β ${b.toFixed(3)}°\n${config.combined?`组合占用 ${(Math.abs(a)+Math.abs(b)).toFixed(3)}° / 30°`:'组合限位未启用，仅检查单轴范围'}\n${mode==='zone'?'目标带轴失配':'晶面偏离平行'} ${residual.toFixed(5)}°${mode==='zone'&&residual<.05?'\n目标晶带轴已与电子束（000）重合。':''}`;
     }catch(e){$('error').textContent=e.message;}
     ctx.restore();ctx.fillStyle='#25454d';ctx.font='18px sans-serif';ctx.fillText('固定束向 +Z · 屏幕 X 向右 / Y 向上',60,34);
     ctx.fillText(`α ${a.toFixed(3)}°   β ${b.toFixed(3)}°   半视场 ±${number('field')}°`,60,777);
@@ -174,4 +174,3 @@
   window.addEventListener('kikuchi-target',e=>{if(!e.detail)return;stop();clearGoal();$('target').value=e.detail.join(' ');$('mode').value='zone';$('result').textContent='已载入球面所选极，请计算。';if(dialog.open)render();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
 })();
-
