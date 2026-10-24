@@ -19,6 +19,10 @@
   ];
   const byId=id=>phases.find(p=>p.id===id)||phases[0];
   const parity=n=>((n%2)+2)%2;
+  const gcd=(a,b)=>b?gcd(b,a%b):a;
+  function reduce(v){const divisor=v.reduce((value,item)=>gcd(value,Math.abs(item)),0);return divisor?v.map(item=>item/divisor):v;}
+  function canonicalPlane(v){const reduced=reduce(v);const first=reduced.find(item=>item!==0)||1;return first<0?reduced.map(item=>-item):reduced;}
+  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
   function allowed(rule,[h,k,l]){
     if(!(h||k||l))return false;
     if(rule==='fcc'||rule==='diamond'){
@@ -46,7 +50,17 @@
       }
       return out.sort((x,y)=>x.dNm-y.dNm).reverse();
     }
-    return {...cell,g,zone,d,allowed:hkl=>allowed(cell.rule,hkl),reflections};
+    function uniqueReflections(limit=3){
+      const unique=new Map();for(const reflection of reflections(limit)){const hkl=canonicalPlane(reflection.hkl),id=hkl.join(',');if(!unique.has(id))unique.set(id,{hkl,g:g(hkl),dNm:d(hkl)});}
+      return [...unique.values()].sort((x,y)=>y.dNm-x.dNm);
+    }
+    function poles(planeLimit=3,axisLimit=6){
+      const unique=new Map(),planeSet=uniqueReflections(planeLimit);
+      const add=v=>{const indices=reduce(v);if(!indices.some(Boolean)||indices.some(value=>Math.abs(value)>axisLimit))return;unique.set(indices.join(','),{indices});};
+      for(let i=0;i<planeSet.length;i++)for(let j=i+1;j<planeSet.length;j++){const v=cross(planeSet[i].hkl,planeSet[j].hkl);add(v);add(v.map(value=>-value));}
+      return [...unique.values()];
+    }
+    return {...cell,g,zone,d,allowed:hkl=>allowed(cell.rule,hkl),reflections,uniqueReflections,poles};
   }
   const api={phases,byId,create,allowed};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
