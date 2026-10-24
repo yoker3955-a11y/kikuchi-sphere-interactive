@@ -66,13 +66,19 @@
     ctx.fillStyle='#fff';ctx.fillRect(0,0,800,800);ctx.strokeStyle='#d4dfe1';ctx.strokeRect(60,60,680,680);
     ctx.save();ctx.beginPath();ctx.rect(60,60,680,680);ctx.clip();
     const line=(segment,color,width=1)=>{if(!segment)return;ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(...xy(segment[0]));ctx.lineTo(...xy(segment[1]));ctx.stroke();};
-    const mapPlanes=material.uniqueReflections(3);
-    for(const reflection of mapPlanes)line(P.clipLine(...E.mv(u,reflection.g),lim),'#408e9690');
-    hit=[];ctx.font='16px sans-serif';const poleLabels=[];
-    for(const pole of material.poles(3,3)){
-      const pt=P.projectPole(material.zone(pole.indices),basis,lim);if(!pt)continue;const [x,y]=xy(pt),label=D.label(pole.indices),width=ctx.measureText(label).width;
-      hit.push({x,y,indices:pole.indices});ctx.fillStyle='#247781';ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);ctx.fill();
-      const box={x:x+5,y:y-18,w:width+4,h:18};if(!poleLabels.some(existing=>box.x<existing.x+existing.w+3&&box.x+box.w+3>existing.x&&box.y<existing.y+existing.h+3&&box.y+box.h+3>existing.y)){poleLabels.push(box);ctx.fillText(label,box.x,box.y+14);}
+    hit=[];ctx.font='16px sans-serif';
+    if(material.id==='si'){
+      // Preserve the verified first-edition Si FCC centre-line and pole catalogue exactly.
+      for(const plane of planes)line(P.clipLine(...E.mv(u,plane.normal),lim),'#408e9690');
+      for(const pole of poles){const pt=P.projectPole(pole.indices,basis,lim);if(!pt)continue;const [x,y]=xy(pt);hit.push({x,y,indices:pole.indices});ctx.fillStyle='#247781';ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();if(hit.length<35)ctx.fillText(D.label(pole.indices),x+6,y-7);}
+    }else{
+      const mapPlanes=material.uniqueReflections(3);for(const reflection of mapPlanes)line(P.clipLine(...E.mv(u,reflection.g),lim),'#408e9690');
+      const poleLabels=[];
+      for(const pole of material.poles(3,3)){
+        const pt=P.projectPole(material.zone(pole.indices),basis,lim);if(!pt)continue;const [x,y]=xy(pt),label=D.label(pole.indices),width=ctx.measureText(label).width;
+        hit.push({x,y,indices:pole.indices});ctx.fillStyle='#247781';ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);ctx.fill();
+        const box={x:x+5,y:y-18,w:width+4,h:18};if(!poleLabels.some(existing=>box.x<existing.x+existing.w+3&&box.x+box.w+3>existing.x&&box.y<existing.y+existing.h+3&&box.y+box.h+3>existing.y)){poleLabels.push(box);ctx.fillText(label,box.x,box.y+14);}
+      }
     }
     spotHit=[];
     if($('spots').checked){
