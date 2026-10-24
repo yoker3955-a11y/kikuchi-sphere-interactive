@@ -14,7 +14,7 @@
   const stage=(a,b,sa=1,sb=1)=>mm(rx(a*sa),ry(b*sb));
   function reference(zone,reflection,angle){
     const z=unit(zone),g=unit(reflection);
-    if(Math.abs(dot(z,g))>1e-7)throw Error('参考反射必须属于当前晶带轴：hu+kv+lw 应等于 0。');
+    if(Math.abs(dot(z,g))>1e-7)throw Error('参考反射必须位于当前晶带轴的倒易平面内。');
     const x=g,y=unit(cross(z,x));
     return mm(rz(angle),[x,y,z]);
   }
