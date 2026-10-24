@@ -1,8 +1,8 @@
 /* Browser-only navigation. All angles are a calibrated geometric model. */
 (() => {
   'use strict';
-  const E=window.KikuchiTilt,D=window.KikuchiDirection,P=window.KikuchiPlanar,C=window.KikuchiPoleCatalog;
-  if(!E||!D||!P||!C)return;
+  const E=window.KikuchiTilt,D=window.KikuchiDirection,P=window.KikuchiPlanar,C=window.KikuchiPoleCatalog,M=window.KikuchiPlaneMetrics;
+  if(!E||!D||!P||!C||!M)return;
   const section=document.createElement('section');section.className='control-block';
   section.innerHTML='<h2>α / β 带轴导航</h2><button id="tilt-open" type="button">打开双倾导航</button><p class="detail">由已知带轴与参考斑点配准，求解指定目标；支持晶面平行电子束。独立于拖动观察视角。</p>';
   document.getElementById('download-block').before(section);
@@ -25,6 +25,9 @@
   <label><input id="tilt-equivalents" type="checkbox"> 同时计算对称等价晶带轴</label><small>适用于 Si 立方对称：如 [112]、[121] 属于同一晶向族，但所需倾角不同。勾选后列表比较，由你选择采用；不勾选时仅计算指定方向。可点击下图菊池极设置目标。</small>
   <button id="tilt-solve" type="button">计算目标 α / β</button><p id="tilt-result" role="status"></p>
   <div id="tilt-equivalent-results" hidden></div><button id="tilt-play" type="button" disabled>播放倾转</button> <button id="tilt-stop" type="button">停止</button> <button id="tilt-go" type="button" disabled>到达计算终点</button>
+  </fieldset><fieldset><legend>晶面参数 · 两面任选</legend>
+  <label>晶面 1 (hkl)<input id="tilt-plane-one" value="1 1 1" aria-describedby="tilt-plane-help"></label><label>晶面 2 (hkl)<input id="tilt-plane-two" value="2 2 0"></label><label>晶格常数 a / nm<input id="tilt-plane-lattice" type="number" min="0.2" max="2" step="0.0001" value="0.5431"></label>
+  <button id="tilt-plane-calculate" type="button">计算 d 值与夹角</button><p id="tilt-plane-result" role="status"></p><small id="tilt-plane-help">适用于当前立方晶系：d = a / √(h²+k²+l²)。夹角由两晶面法向计算，输出 0–90° 的晶面锐角；不受当前 α / β 姿态影响。</small>
   </fieldset><fieldset><legend>3 手动倾转与路径检查</legend>
   <label>α °<input id="tilt-a" type="number" value="0" step="0.1"><input id="tilt-ar" aria-label="α 滑块" type="range" min="-35" max="35" step="0.01" value="0"></label>
   <label>β °<input id="tilt-b" type="number" value="0" step="0.1"><input id="tilt-br" aria-label="β 滑块" type="range" min="-30" max="30" step="0.01" value="0"></label>
@@ -99,6 +102,12 @@
     if(window.KikuchiStageView)window.KikuchiStageView(E.quaternion(u));
   }
   function guard(fn){return ()=>{try{fn();}catch(e){$('error').textContent=e.message;}};}
+  function calculatePlanes(){
+    const first=D.parse($('plane-one').value).reduced,second=D.parse($('plane-two').value).reduced,lattice=number('plane-lattice');
+    if(lattice<.2||lattice>2)throw Error('晶格常数范围为 0.2–2 nm。');
+    const metrics=M.calculate(first,second,lattice);
+    $('plane-result').textContent=`晶面 1 (${first.join(' ')})：d₁ = ${metrics.dFirst.toFixed(5)} nm\n晶面 2 (${second.join(' ')})：d₂ = ${metrics.dSecond.toFixed(5)} nm\n两晶面夹角 φ = ${metrics.angleDeg.toFixed(4)}°（锐角）`;
+  }
   function initialize(){
     stop();clearGoal();base=null;
     const c={combined:$('combined').checked};for(const key of ['a0','b0','amin','amax','bmin','bmax','sa','sb','azimuth'])c[key]=number(key);
@@ -114,6 +123,7 @@
   $('open').onclick=()=>{dialog.showModal();if(!base)guard(initialize)();else render();};
   $('close').onclick=()=>{stop();dialog.close();};dialog.addEventListener('close',stop);
   $('init').onclick=guard(initialize);
+  $('plane-calculate').onclick=()=>{try{calculatePlanes();}catch(error){$('plane-result').textContent=error.message;}};
   function showEquivalents(){
     const rows=E.equivalentSolutions(args()),host=$('equivalent-results');host.replaceChildren();host.hidden=false;
     const table=document.createElement('table'),caption=table.createCaption();
