@@ -31,18 +31,22 @@
   <label>β °<input id="tilt-b" type="number" value="0" step="0.1"><input id="tilt-br" aria-label="β 滑块" type="range" min="-30" max="30" step="0.01" value="0"></label>
   <button id="tilt-reset" type="button">回到参考 α₀ / β₀</button><p id="tilt-error" role="status"></p></fieldset>
   </div><div class="tilt-map"><label>半视场角<select id="tilt-field"><option value="2">±2° 衍射细节</option><option value="5">±5° 精调</option><option value="35" selected>±35° 导航</option><option value="60">±60° 广角</option></select></label>
-  <label><input id="tilt-spots" type="checkbox" checked> 显示材料衍射位置</label><label><input id="tilt-spot-labels" type="checkbox" checked> 标注衍射斑点 (hkl)</label><label>查询当前衍射斑点<select id="tilt-spot-select"><option value="">选择斑点</option></select></label><p id="tilt-spot-info" role="status">可点击紫色斑点查看晶面指数。</p><fieldset class="tilt-plane-query"><legend>从当前衍射斑点任选两晶面</legend><label>晶面 A<select id="tilt-plane-first"></select></label><label>晶面 B<select id="tilt-plane-second"></select></label><p id="tilt-plane-result" role="status">选择两项后显示 d 值与晶面夹角。</p><small>仅列出当前视场内、符合所选晶相结构因子的反射。相机长度用于估算屏幕半径；夹角取晶面法向的 0–90° 锐角。</small></fieldset><canvas id="tilt-canvas" width="800" height="800" aria-label="随双倾角实时更新的菊池中心线、菊池极和材料衍射位置"></canvas>
+  <label><input id="tilt-spots" type="checkbox" checked> 显示材料衍射位置</label><label><input id="tilt-spot-labels" type="checkbox" checked> 标注衍射斑点 (hkl)</label><label>查询当前衍射斑点<select id="tilt-spot-select"><option value="">选择斑点</option></select></label><p id="tilt-spot-info" role="status">可点击紫色斑点查看晶面指数。</p><fieldset class="tilt-plane-query"><legend>从当前衍射斑点任选两晶面</legend><label>晶面 A<select id="tilt-plane-first"></select></label><label>晶面 B<select id="tilt-plane-second"></select></label><p id="tilt-plane-result" role="status">选择两项后显示 d 值与晶面夹角。</p><small>仅列出当前视场内、符合所选晶相结构因子的反射。相机长度用于估算屏幕半径；夹角取晶面法向的 0–90° 锐角。</small></fieldset><fieldset class="tilt-plane-query"><legend>由实测晶面数据反推晶带轴</legend><div class="tilt-pair"><label>晶面 A d / nm<input id="tilt-infer-d-first" type="number" min="0.01" step="0.00001" placeholder="例如 0.31356"></label><label>晶面 B d / nm<input id="tilt-infer-d-second" type="number" min="0.01" step="0.00001" placeholder="例如 0.19201"></label></div><div class="tilt-pair"><label>两面夹角 φ / °<input id="tilt-infer-angle" type="number" min="0" max="90" step="0.0001" placeholder="例如 35.2644"></label><label>d 值容差 / nm<input id="tilt-infer-d-tolerance" type="number" min="0" step="0.0001" value="0.003"></label></div><label>夹角容差 / °<input id="tilt-infer-angle-tolerance" type="number" min="0" step="0.1" value="1"></label><button id="tilt-infer-zone" type="button">反推候选晶带轴</button><p id="tilt-infer-result" role="status">输入两个 d 值及其夹角，按当前材料、晶格常数和结构消光规则枚举候选。</p><div id="tilt-infer-candidates" hidden></div><small>同一组 d 值与夹角通常有多组 (hkl) 解；结果是候选而不是未经衍射图确认的唯一带轴。点击“采用”会载入该 [uvw] 为双倾目标。</small></fieldset><canvas id="tilt-canvas" width="800" height="800" aria-label="随双倾角实时更新的菊池中心线、菊池极和材料衍射位置"></canvas>
   <p>青色线为当前材料低指数允许反射的几何中心线；青色点为由这些晶面相交得到的菊池极，点击任一点可设为目标。红色为目标；紫色为衍射位置及对应 (hkl) 指数。密集时切换到 ±2° 或 ±5° 查看。000 固定在图中央。目标晶面模式将该面中心线通过 000。</p>
   <p class="detail">反射按所选材料/晶相的理想结构因子及 |h|、|k|、|l| ≤ 6 筛选，以弹性球径向偏离 ≤ 0.15 nm⁻¹ 显示离轴反射；透明度仅表示几何接近程度，不是强度。未模拟带宽、动力学、多重散射和样品遮挡。</p>
   <p class="detail">参考 <a href="https://github.com/din14970/ALPHABETA-TEM-tilting-suite" target="_blank" rel="noopener">ALPHABETA</a> 与 <a href="https://mompiou.github.io/pycotem/stereoproj/" target="_blank" rel="noopener">pycotem</a> 的问题定义；本模块由旋转方程独立实现，未复制其源码。</p>
   </div></div>`;
   dialog.querySelector('.tilt-layout').before(dialog.querySelector('#tilt-equivalent-results'));
   document.body.append(dialog);
+  const zonePreview=document.createElement('dialog');zonePreview.id='tilt-zone-preview';zonePreview.setAttribute('aria-labelledby','tilt-zone-preview-title');
+  zonePreview.innerHTML=`<div class="pole-header"><h2 id="tilt-zone-preview-title">候选晶带轴衍射预览</h2><button id="tilt-zone-preview-close" type="button">关闭预览</button></div><p id="tilt-zone-preview-info" role="status"></p><label>半视场角<select id="tilt-zone-preview-field"><option value="2">±2°</option><option value="5">±5°</option><option value="15" selected>±15°</option><option value="35">±35°</option></select></label><label><input id="tilt-zone-preview-labels" type="checkbox" checked> 标注 (hkl)</label><fieldset><legend>预览斑点二次核验</legend><div class="tilt-pair"><label>晶面 A<select id="tilt-zone-preview-first"></select></label><label>晶面 B<select id="tilt-zone-preview-second"></select></label></div><p id="tilt-zone-preview-result" role="status">从图中点选两个紫色斑点，或从列表选择。</p><small>显示两个所选反射的 d 值及夹角；夹角取 0–90° 锐角。</small></fieldset><canvas id="tilt-zone-preview-canvas" width="720" height="720" aria-label="候选晶带轴对准电子束时的计算衍射斑点"></canvas><p class="detail">将候选 [uvw] 对准电子束，显示当前材料、晶格常数、加速电压与相机长度下的几何衍射位置。点大小和透明度不代表实验强度。</p>`;
+  document.body.append(zonePreview);
+  const previewStyle=document.createElement('style');previewStyle.textContent='#tilt-zone-preview{width:min(780px,96vw);max-width:96vw;box-sizing:border-box;border:1px solid #aebfc2;border-radius:16px;padding:12px 16px;color:#17383e}#tilt-zone-preview::backdrop{background:#203b4990}#tilt-zone-preview canvas{display:block;width:min(100%,620px);height:auto;border:1px solid #ccd8db;margin:10px auto}#tilt-zone-preview label{margin-right:16px}#tilt-zone-preview fieldset{border:1px solid #cad8da;border-radius:8px;margin:10px 0;padding:8px}#tilt-zone-preview select{display:block;width:100%;box-sizing:border-box;margin-top:3px;padding:5px}#tilt-zone-preview-info,#tilt-zone-preview-result{font-weight:600;white-space:pre-line}#tilt-zone-preview small{color:#45616a}';document.head.append(previewStyle);
   const style=document.createElement('style');style.textContent=`#tilt-dialog{width:min(1480px,99vw);max-width:99vw;height:96vh;max-height:96vh;box-sizing:border-box;overflow:auto;border:1px solid #aebfc2;border-radius:16px;padding:12px 16px;color:#17383e}#tilt-dialog::backdrop{background:#203b4990}.tilt-layout{display:grid;grid-template-columns:minmax(340px,430px) minmax(0,1fr);gap:16px;align-items:start}#tilt-dialog fieldset{border:1px solid #cad8da;border-radius:8px;margin:8px 0;padding:10px}#tilt-dialog label{display:block;margin:5px 0}#tilt-dialog input:not([type=checkbox]),#tilt-dialog select{display:block;box-sizing:border-box;width:100%;padding:5px;margin-top:3px}#tilt-dialog button{margin-top:5px;padding:7px}.tilt-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tilt-map{min-width:0}.tilt-map canvas{display:block;width:min(100%,58vh);height:auto;touch-action:manipulation;border:1px solid #ccd8db;margin:4px auto}.tilt-map>p{margin:8px 0}#tilt-dialog small{display:block;line-height:1.4;color:#45616a}#tilt-result,#tilt-error,#tilt-plane-result{white-space:pre-line;font-weight:600;margin:7px 0}#tilt-dialog legend{font-weight:700}#tilt-equivalent-results{overflow:auto;max-height:320px;margin:8px 0}#tilt-equivalent-results table{border-collapse:collapse;font-size:13px;white-space:nowrap}#tilt-equivalent-results th,#tilt-equivalent-results td{padding:6px;border:1px solid #cad8da;text-align:right}#tilt-equivalent-results th{background:#edf5f6}#tilt-equivalent-results caption{text-align:left;white-space:normal;font-weight:600;padding:6px 0}@media(max-width:760px){.tilt-layout{grid-template-columns:1fr}#tilt-dialog{padding:10px}.tilt-map{order:-1}.tilt-map canvas{width:min(100%,52vh)}}`;
   document.head.append(style);
   const $=id=>document.getElementById('tilt-'+id),canvas=$('canvas'),ctx=canvas.getContext('2d');
   const data=window.KIKUCHI_MODEL,planes=C.planes(data.legends.FCC),poles=C.build(data.legends.FCC,data.faces);
-  let config=null,base=null,a=0,b=0,goal=null,raf=0,hit=[],spotHit=[],selectedSpot='',material=null;
+  let config=null,base=null,a=0,b=0,goal=null,raf=0,hit=[],spotHit=[],selectedSpot='',material=null,previewCandidate=null,previewSpots=[],previewFirst='',previewSecond='',previewNext='first';
   function selectedMaterial(){return T.create($('material').value,{a:Number($('lattice-a').value),c:Number($('lattice-c').value)});}
   function targetVector(text,mode){const indices=D.parse(text).reduced;return {indices,vector:mode==='plane'?material.g(indices):material.zone(indices)};}
   function applyMaterial(){
@@ -50,6 +54,7 @@
     $('lattice-c').disabled=phase.system==='cubic';$('zone').value=phase.zone.join(' ');$('ref').value=phase.reflection.join(' ');material=selectedMaterial();
     $('material-note').textContent=`${phase.label} · ${phase.system==='cubic'?'立方':'六方'}晶系 · ${phase.rule==='diamond'?'金刚石结构消光':phase.rule.toUpperCase()+' 结构允许反射'}。`;
     $('equivalents').disabled=phase.system!=='cubic';if(phase.system!=='cubic')$('equivalents').checked=false;$('equivalents-help').textContent=phase.system==='cubic'?'适用于当前立方相：如 [112]、[121] 属于同一晶向族，但所需倾角不同。':'当前 HCP 相不使用立方对称等价晶向；为避免错误结果，该选项已关闭。';
+    previewCandidate=null;$('infer-candidates').replaceChildren();$('infer-candidates').hidden=true;$('infer-result').textContent='材料已更新；请重新输入 d 值和夹角反推候选晶带轴。';
     base=null;clearGoal();$('result').textContent='材料已更新，请建立参考取向。';
   }
   function populateMaterials(){for(const phase of T.phases)$('material').append(new Option(phase.label,phase.id));$('material').value='si';applyMaterial();}
@@ -128,6 +133,76 @@
     const cosine=Math.min(1,Math.max(0,Math.abs(E.dot(first.gCrystal,second.gCrystal)/(Math.hypot(...first.gCrystal)*Math.hypot(...second.gCrystal)))));
     $('plane-result').textContent=`晶面 A (${first.hkl.join(' ')})：d = ${first.dNm.toFixed(5)} nm\n晶面 B (${second.hkl.join(' ')})：d = ${second.dNm.toFixed(5)} nm\n两晶面夹角 φ = ${(Math.acos(cosine)*180/Math.PI).toFixed(4)}°（锐角）`;
   }
+  function showPreviewPlanePair(){
+    const first=previewSpots.find(spot=>spot.id===$('zone-preview-first').value),second=previewSpots.find(spot=>spot.id===$('zone-preview-second').value);
+    if(!first||!second){$('zone-preview-result').textContent='预览视场内至少需要两个非零允许反射。可增大半视场。';return;}
+    previewFirst=first.id;previewSecond=second.id;
+    const cosine=Math.min(1,Math.max(0,Math.abs(E.dot(first.reflection.g,second.reflection.g)/(Math.hypot(...first.reflection.g)*Math.hypot(...second.reflection.g)))));
+    $('zone-preview-result').textContent=`晶面 A (${first.reflection.hkl.join(' ')})：d = ${first.reflection.dNm.toFixed(5)} nm\n晶面 B (${second.reflection.hkl.join(' ')})：d = ${second.reflection.dNm.toFixed(5)} nm\n两晶面夹角 φ = ${(Math.acos(cosine)*180/Math.PI).toFixed(4)}°（锐角）`;
+  }
+  function updatePreviewPlaneChoices(){
+    const firstSelect=$('zone-preview-first'),secondSelect=$('zone-preview-second'),ids=previewSpots.map(spot=>spot.id).join(';');
+    if(firstSelect.dataset.ids!==ids){
+      const priorFirst=previewFirst||firstSelect.value,priorSecond=previewSecond||secondSelect.value,options=previewSpots.map(spot=>new Option('('+spot.reflection.hkl.join(' ')+')',spot.id));
+      firstSelect.replaceChildren(...options.map(option=>option.cloneNode(true)));secondSelect.replaceChildren(...options);
+      const fallbackFirst=previewSpots[0]?.id||'',fallbackSecond=previewSpots.find(spot=>spot.id!==fallbackFirst)?.id||fallbackFirst;
+      previewFirst=previewSpots.some(spot=>spot.id===priorFirst)?priorFirst:fallbackFirst;previewSecond=previewSpots.some(spot=>spot.id===priorSecond)?priorSecond:fallbackSecond;
+      firstSelect.dataset.ids=secondSelect.dataset.ids=ids;
+    }
+    firstSelect.value=previewFirst;secondSelect.value=previewSecond;showPreviewPlanePair();
+  }
+  function previewZoneDiffraction(candidate){
+    if(previewCandidate!==candidate){previewCandidate=candidate;previewFirst='';previewSecond='';previewNext='first';}
+    const previewMaterial=selectedMaterial(),previewCanvas=$('zone-preview-canvas'),previewCtx=previewCanvas.getContext('2d');
+    const field=number('zone-preview-field'),lim=Math.tan(field*Math.PI/180),lambda=P.wavelength(number('kv')),k=1/lambda,camera=number('camera');
+    // The first matched plane lies in the candidate zone by construction and
+    // fixes the in-plane X direction; it does not change the spot geometry.
+    const u=E.reference(previewMaterial.zone(candidate.zone),candidate.first.g,0),xy=p=>[360+p[0]/lim*295,360-p[1]/lim*295];
+    previewCtx.fillStyle='#fff';previewCtx.fillRect(0,0,720,720);previewCtx.strokeStyle='#d4dfe1';previewCtx.strokeRect(65,65,590,590);
+    previewCtx.save();previewCtx.beginPath();previewCtx.rect(65,65,590,590);previewCtx.clip();
+    const spots=[];
+    for(const reflection of previewMaterial.reflections(6)){
+      const g=E.mv(u,reflection.g),deviation=Math.abs(Math.hypot(g[0],g[1],k+g[2])-k);
+      if(deviation>.15||k+g[2]<=0)continue;
+      const point=[g[0]/(k+g[2]),g[1]/(k+g[2])];if(point.some(value=>Math.abs(value)>lim))continue;
+      const [x,y]=xy(point);spots.push({x,y,reflection,id:reflection.hkl.join(','),deviation,screenMm:camera*Math.hypot(...point)});
+    }
+    previewSpots=spots;updatePreviewPlaneChoices();
+    previewCtx.font='14px sans-serif';const occupied=[{x:347,y:346,w:48,h:30}];
+    for(const spot of spots){
+      previewCtx.globalAlpha=.35+.65*(1-spot.deviation/.15);previewCtx.fillStyle='#932198';previewCtx.beginPath();previewCtx.arc(spot.x,spot.y,3.4,0,Math.PI*2);previewCtx.fill();
+      if(spot.id===previewFirst||spot.id===previewSecond){previewCtx.globalAlpha=1;previewCtx.strokeStyle=spot.id===previewFirst?'#d84536':'#176d78';previewCtx.lineWidth=2;previewCtx.beginPath();previewCtx.arc(spot.x,spot.y,8,0,Math.PI*2);previewCtx.stroke();}
+      if(!$('zone-preview-labels').checked)continue;
+      const label='('+spot.reflection.hkl.join(' ')+')',width=previewCtx.measureText(label).width+6,box={x:Math.max(67,Math.min(653-width,spot.x+7)),y:Math.max(67,Math.min(635,spot.y-20)),w:width,h:18};
+      const overlap=occupied.some(existing=>box.x<existing.x+existing.w+2&&box.x+box.w+2>existing.x&&box.y<existing.y+existing.h+2&&box.y+box.h+2>existing.y);if(overlap)continue;
+      occupied.push(box);previewCtx.globalAlpha=1;previewCtx.fillStyle='#fffffff0';previewCtx.fillRect(box.x,box.y,box.w,box.h);previewCtx.fillStyle='#932198';previewCtx.fillText(label,box.x+3,box.y+14);
+    }
+    previewCtx.globalAlpha=1;previewCtx.fillStyle='#252938';previewCtx.beginPath();previewCtx.arc(360,360,5,0,Math.PI*2);previewCtx.fill();previewCtx.fillText('000',369,381);previewCtx.restore();
+    previewCtx.fillStyle='#25454d';previewCtx.font='17px sans-serif';previewCtx.fillText(`候选 ${D.label(candidate.zone)} → 电子束方向 · 半视场 ±${field}°`,65,38);previewCtx.fillText(`几何可见非零反射：${spots.length} 个`,65,692);
+    $('zone-preview-info').textContent=`候选晶带轴 ${D.label(candidate.zone)}；由 (${candidate.first.hkl.join(' ')}) 与 (${candidate.second.hkl.join(' ')}) 相交得到。\n${previewMaterial.label} · ${number('kv')} kV · 有效相机长度 ${camera} mm。`;
+    if(!zonePreview.open)zonePreview.showModal();
+  }
+  function inferZoneAxis(){
+    material=selectedMaterial();
+    const result=M.inferZoneAxes(material.reflections(6),{
+      dFirst:number('infer-d-first'),dSecond:number('infer-d-second'),angleDeg:number('infer-angle'),
+      dTolerance:number('infer-d-tolerance'),angleTolerance:number('infer-angle-tolerance')
+    });
+    const host=$('infer-candidates');host.replaceChildren();host.hidden=false;
+    if(!result.candidates.length){
+      $('infer-result').textContent=`未找到候选。dA 匹配 ${result.firstMatches} 个允许反射、dB 匹配 ${result.secondMatches} 个允许反射；可核对材料/晶格常数，或在测量精度允许时增大容差。`;
+      return;
+    }
+    $('infer-result').textContent=`找到 ${result.candidates.length} 个候选晶面组合（dA 匹配 ${result.firstMatches} 项，dB 匹配 ${result.secondMatches} 项）。[uvw] 与 [-u -v -w] 是同一晶带轴，结果按测量误差由小到大排列。`;
+    const table=document.createElement('table'),caption=table.createCaption();caption.textContent='候选晶面与对应晶带轴';
+    const head=table.createTHead().insertRow();for(const text of ['晶面 A (hkl)','dA / nm','晶面 B (hkl)','dB / nm','φ / °','候选带轴 [uvw]','操作']){const th=document.createElement('th');th.scope='col';th.textContent=text;head.append(th);}
+    const body=table.createTBody();
+    for(const candidate of result.candidates){
+      const row=body.insertRow();for(const value of [`(${candidate.first.hkl.join(' ')})`,candidate.first.dNm.toFixed(5),`(${candidate.second.hkl.join(' ')})`,candidate.second.dNm.toFixed(5),candidate.angleDeg.toFixed(4),D.label(candidate.zone)])row.insertCell().textContent=value;
+      const action=row.insertCell(),preview=document.createElement('button');preview.type='button';preview.textContent='预览衍射';preview.onclick=guard(()=>previewZoneDiffraction(candidate));const button=document.createElement('button');button.type='button';button.textContent='采用';button.onclick=guard(()=>selectPole(candidate.zone,'已从两晶面数据载入候选菊池极，请建立参考取向后计算目标角度。'));action.append(preview,document.createTextNode(' '),button);
+    }
+    host.append(table);
+  }
   function updatePlaneChoices(){
     const firstSelect=$('plane-first'),secondSelect=$('plane-second'),ids=spotHit.map(p=>p.id).join(';');
     if(firstSelect.dataset.ids===ids){showPlanePair();return;}
@@ -156,6 +231,10 @@
   }
   $('open').onclick=()=>{dialog.showModal();if(!base)guard(initialize)();else render();};
   $('close').onclick=()=>{stop();dialog.close();};dialog.addEventListener('close',stop);
+  $('zone-preview-close').onclick=()=>zonePreview.close();
+  for(const id of ['zone-preview-field','zone-preview-labels'])$(id).addEventListener('change',guard(()=>{if(previewCandidate)previewZoneDiffraction(previewCandidate);}));
+  for(const id of ['zone-preview-first','zone-preview-second'])$(id).addEventListener('change',guard(()=>{previewFirst=$('zone-preview-first').value;previewSecond=$('zone-preview-second').value;showPreviewPlanePair();if(previewCandidate)previewZoneDiffraction(previewCandidate);}));
+  $('zone-preview-canvas').addEventListener('click',e=>{if(!previewCandidate||!previewSpots.length)return;const rect=e.currentTarget.getBoundingClientRect(),x=(e.clientX-rect.left)*720/rect.width,y=(e.clientY-rect.top)*720/rect.height,nearest=previewSpots.map(spot=>({...spot,d:Math.hypot(spot.x-x,spot.y-y)})).sort((a,b)=>a.d-b.d)[0];if(!nearest||nearest.d>14)return;if(previewNext==='first'){previewFirst=nearest.id;previewNext='second';}else{previewSecond=nearest.id;previewNext='first';}previewZoneDiffraction(previewCandidate);});
   populateMaterials();
   $('init').onclick=guard(initialize);
   function showEquivalents(){
@@ -185,6 +264,7 @@
   $('material').addEventListener('change',applyMaterial);for(const id of ['kv','camera'])$(id).addEventListener('input',()=>{if(base)render();});
   $('spot-select').addEventListener('change',()=>{selectedSpot=$('spot-select').value;render();});
   for(const id of ['plane-first','plane-second'])$(id).addEventListener('change',showPlanePair);
+  $('infer-zone').onclick=guard(inferZoneAxis);
   for(const id of ['field','spots','spot-labels'])$(id).addEventListener('change',guard(render));
   canvas.addEventListener('click',e=>{if(!base)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*800/r.width,y=(e.clientY-r.top)*800/r.height;const nearest=spotHit.map(p=>({...p,d:Math.hypot(p.x-x,p.y-y)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<12){selectedSpot=nearest.id;render();return;}const p=hit.map(p=>({...p,d:Math.hypot(p.x-x,p.y-y)})).sort((a,b)=>a.d-b.d)[0];if(p&&p.d<20)selectPole(p.indices);});
   window.addEventListener('kikuchi-target',e=>{if(!e.detail)return;stop();clearGoal();$('target').value=e.detail.join(' ');$('mode').value='zone';$('result').textContent='已载入球面所选极，请计算。';if(dialog.open)render();});
