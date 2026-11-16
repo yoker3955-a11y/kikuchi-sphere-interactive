@@ -44,6 +44,7 @@
   </div></div>`;
   dialog.querySelector('.tilt-layout').before(dialog.querySelector('#tilt-equivalent-results'));
   document.body.append(dialog);
+  const calibrationBlock=document.createElement('fieldset');calibrationBlock.id='tilt-calibration-profile';calibrationBlock.innerHTML=`<legend>机台标定档案</legend><label>档案名称<input id="tilt-calibration-name" value="本机双倾样品杆" maxlength="60"></label><p class="detail">保存当前参考晶带轴、参考反射、α/β 零位、轴方向、屏幕方位和限位。档案仅保存在当前浏览器；不向网络发送任何仪器参数。</p><div class="tilt-pair"><button id="tilt-calibration-save" type="button">保存本机档案</button><button id="tilt-calibration-load" type="button">载入已保存档案</button></div><p id="tilt-calibration-status" role="status">当前为理论默认参数，尚未载入本机标定档案。</p><small>保存或载入后，请点击“建立参考取向”再计算目标。模型仅提供导航计算，不连接或控制显微镜。</small>`;dialog.querySelector('.tilt-controls').prepend(calibrationBlock);
   const zonePreview=document.createElement('dialog');zonePreview.id='tilt-zone-preview';zonePreview.setAttribute('aria-labelledby','tilt-zone-preview-title');
   zonePreview.innerHTML=`<div class="pole-header"><h2 id="tilt-zone-preview-title">晶带轴衍射预览</h2><button id="tilt-zone-preview-close" type="button">关闭预览</button></div><p id="tilt-zone-preview-info" role="status"></p><label>半视场角<select id="tilt-zone-preview-field"><option value="2">±2°</option><option value="5">±5°</option><option value="15" selected>±15°</option><option value="35">±35°</option></select></label><label><input id="tilt-zone-preview-forbidden" type="checkbox"> 显示禁带反射（结构消光）</label><label><input id="tilt-zone-preview-labels" type="checkbox" checked> 标注 (hkl)</label><button id="tilt-zone-preview-reset-rotation" type="button">复位图样方位</button><fieldset><legend>预览斑点二次核验</legend><div class="tilt-pair"><label>晶面 A<select id="tilt-zone-preview-first"></select></label><label>晶面 B<select id="tilt-zone-preview-second"></select></label></div><p id="tilt-zone-preview-result" role="status">从图中点选两个斑点，或从列表选择。</p><small>紫色实心为允许反射，橙色实心为禁带反射；禁带点仅作几何对照，不参与反推或双倾导航。</small></fieldset><canvas id="tilt-zone-preview-canvas" width="720" height="720" aria-label="指定晶带轴对准电子束时的计算衍射斑点；左键拖动可旋转图样，单击斑点可选晶面"></canvas><p class="detail">左键拖动图样可自由旋转屏幕内方位；单击斑点可选择晶面。旋转不改变晶带轴、d 值、夹角或允许反射集合。</p>`;
   document.body.append(zonePreview);
@@ -54,6 +55,12 @@
   const $=id=>document.getElementById('tilt-'+id),canvas=$('canvas'),ctx=canvas.getContext('2d');
   const data=window.KIKUCHI_MODEL,planes=C.planes(data.legends.FCC),poles=C.build(data.legends.FCC,data.faces);
   let config=null,base=null,a=0,b=0,goal=null,raf=0,hit=[],spotHit=[],selectedSpot='',material=null,previewCandidate=null,previewSpots=[],previewFirst='',previewSecond='',previewNext='first',previewRotation=0,previewPointer=null,previewDragged=false,previewSuppressClick=false;
+  const calibrationStore='kikuchi.doubleTilt.calibration.v1',calibrationFields=['material','lattice-a','lattice-c','zone','ref','phi','a0','b0','combined','azimuth','amin','amax','bmin','bmax','sa','sb'];
+  function setCalibrationStatus(message){$('calibration-status').textContent=message;}
+  function calibrationValues(){return Object.fromEntries(calibrationFields.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]));}
+  function invalidateCalibrationReference(){stop();clearGoal();base=null;$('result').textContent='机台标定参数已改变，请重新建立参考取向。';$('error').textContent='图中仍为上次状态，尚未应用新标定。';}
+  function saveCalibration(){const payload={version:1,name:$('calibration-name').value.trim()||'本机双倾样品杆',savedAt:new Date().toISOString(),values:calibrationValues()};try{localStorage.setItem(calibrationStore,JSON.stringify(payload));setCalibrationStatus(`已保存“${payload.name}”。保存或载入后请重新建立参考取向。`);}catch{setCalibrationStatus('浏览器拒绝保存本机档案；可继续使用当前参数，但关闭页面后不会保留。');}}
+  function loadCalibration(){let payload;try{payload=JSON.parse(localStorage.getItem(calibrationStore)||'null');}catch{}if(!payload?.values){setCalibrationStatus('未找到已保存的本机标定档案。请填写实测参数后点击“保存本机档案”。');return;}if(payload.values.material){$('material').value=String(payload.values.material);applyMaterial();}for(const id of calibrationFields){if(id==='material'||!(id in payload.values))continue;const field=$(id);if(field.type==='checkbox')field.checked=Boolean(payload.values[id]);else field.value=String(payload.values[id]);}$('calibration-name').value=payload.name||'本机双倾样品杆';invalidateCalibrationReference();setCalibrationStatus(`已载入“${payload.name||'未命名档案'}”（保存于 ${new Date(payload.savedAt).toLocaleString()}）。请建立参考取向后使用。`);}
   function selectedMaterial(){return T.create($('material').value,{a:Number($('lattice-a').value),c:Number($('lattice-c').value)});}
   function navigationMaterial(){return T.create($('zone-material').value,{a:Number($('zone-lattice-a').value),c:Number($('zone-lattice-c').value)});}
   function theoreticalZone(){const value=$('infer-theory-zone').value.trim();return value?D.parse(value).reduced:null;}
@@ -271,6 +278,7 @@
   previewCanvas.addEventListener('click',e=>{if(previewSuppressClick){previewSuppressClick=false;return;}if(!previewCandidate||!previewSpots.length)return;const rect=e.currentTarget.getBoundingClientRect(),x=(e.clientX-rect.left)*720/rect.width,y=(e.clientY-rect.top)*720/rect.height,nearest=previewSpots.map(spot=>({...spot,d:Math.hypot(spot.x-x,spot.y-y)})).sort((a,b)=>a.d-b.d)[0];if(!nearest||nearest.d>14)return;if(previewNext==='first'){previewFirst=nearest.id;previewNext='second';}else{previewSecond=nearest.id;previewNext='first';}previewZoneDiffraction(previewCandidate);});
   previewCanvas.style.cursor='grab';
   populateMaterials();
+  $('calibration-save').onclick=guard(saveCalibration);$('calibration-load').onclick=guard(loadCalibration);
   $('init').onclick=guard(initialize);
   function showEquivalents(){
     if(material.system!=='cubic'||$('mode').value!=='zone')return;
