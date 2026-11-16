@@ -91,7 +91,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 294px;min-height:calc(100s
 #source-links { margin-top:12px; }
 #planar-dialog { width:min(960px,96vw); max-height:94dvh; padding:20px; border:1px solid #b3cccb; border-radius:14px; overflow:auto; color:#183b42; box-sizing:border-box; }
 #planar-dialog::backdrop { background:#102a35aa; }
-#planar-preview { display:block; width:min(100%,650px); height:auto; margin:14px auto; background:white; border:1px solid #d6e2db; }
+#planar-preview { display:block; width:min(100%,650px); height:auto; margin:14px auto; background:white; border:1px solid #d6e2db; touch-action:none; user-select:none; }
 .planar-options,.planar-downloads { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:14px; }
 .planar-options { font-size:14px; }
 #planar-dialog button,#planar-dialog select,.planar-downloads a { border:1px solid #a8c4c4; border-radius:6px; padding:9px 12px; background:#f1f8f7; color:#155e67; font:inherit; text-decoration:none; cursor:pointer; }

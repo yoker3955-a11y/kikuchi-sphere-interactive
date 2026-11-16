@@ -45,7 +45,7 @@
     const extra=model==='FCC'?['{311}','{331}','{420}']:['{310}','{321}','{411}'];
     return [...legend,...extra.filter(label=>!legend.some(e=>e.label===label)).map((label,i)=>({label,color:['#8b4d95','#ba602b','#3760a3'][i],dash:'4 3'}))];
   }
-  function make({model,legend,faces,basis,direction,pins=[],halfAngle=35,labels=true,spots=false,forbiddenSpots=false,extended=false,bands=false,aNm=.5431,kv=200,diamond=true,centerLines=true,planeLabels=false}){
+  function make({model,legend,faces,basis,direction,pins=[],halfAngle=35,labels=true,spots=false,forbiddenSpots=false,extended=false,bands=false,aNm=.5431,kv=200,diamond=true,centerLines=true,planeLabels=false,screenRotation=0}){
     if(!Number.isFinite(aNm)||aNm<.2||aNm>2||!Number.isFinite(kv)||kv<60||kv>400)throw new Error('晶格常数范围 0.2–2 nm，加速电压范围 60–400 kV。');
     diamond=(diamond||spots)&&model==='FCC';
     if(extended)legend=extendedLegend(model,legend);
@@ -147,7 +147,7 @@
     text(90,1234,bands||spots?`a=${aNm} nm | ${kv} kV | geometric Bragg width 2 thetaB; no intensity simulation.`:'Geometric center lines only; no band width or intensity simulation.',13);
     text(90,1256,spots?'ZOLZ approximation; |h,k,l|<=8. Equal spot sizes; no intensity / dynamical simulation.':extended?'Extended mathematical families; not a digitization of the Austin P. Day artwork.':'Families: teaching FCC/BCC map. Ticks: angle from center along each axis (deg).',12);
     text(90,1280,'Kikuchi Sphere project | Original layout: Austin P. Day | CC BY-NC-SA 3.0',11);
-    const metadata={reflections,material:spots?'Si':null,voltageKV:spots?kv:null,latticeNm:spots?aNm:null,wavelengthNm:spots?wavelength(kv):null,model,direction:indices,basis,forward,halfAngle,projection:'gnomonic',scope:'teaching-center-line-families',lines:lineRecords,poles:poleRecords,pinsOutside:pins.filter(id=>!poleRecords.some(p=>p.indices.join(',')===id)),visiblePins};
+    const metadata={reflections,material:spots?'Si':null,voltageKV:spots?kv:null,latticeNm:spots?aNm:null,wavelengthNm:spots?wavelength(kv):null,model,direction:indices,basis,forward,halfAngle,screenRotation,projection:'gnomonic',scope:'teaching-center-line-families',lines:lineRecords,poles:poleRecords,pinsOutside:pins.filter(id=>!poleRecords.some(p=>p.indices.join(',')===id)),visiblePins};
     bandRecords.sort((a,b)=>b.dNm-a.dNm);
     metadata.bands=bandRecords;metadata.bandModel=bands?'geometric-Bragg-cones':null;metadata.bandLatticeNm=bands?aNm:null;metadata.bandVoltageKV=bands?kv:null;metadata.diamond=diamond;
     metadata.scope=extended?'extended-mathematical-families':metadata.scope;metadata.families=legend.map(e=>e.label);
@@ -190,16 +190,20 @@
     return new TextEncoder().encode(out);
   }
   function attach(getState,setDirection){
-    const $=id=>document.getElementById(id),dialog=$('planar-dialog');let state=null,scene=null,urls=[];
+    const $=id=>document.getElementById(id),dialog=$('planar-dialog');let state=null,scene=null,urls=[],screenRotation=0,previewPointer=null;
+    // Each basis row is one crystal-axis vector expressed as [screen X, screen Y, beam Z].
+    // Rotate its two screen components while retaining the beam component and zone axis.
+    const screenBasis=(basis,deg)=>{const rad=deg*Math.PI/180,c=Math.cos(rad),s=Math.sin(rad);return basis.map(v=>[v[0]*c+v[1]*s,-v[0]*s+v[1]*c,v[2]]);};
+    function setScreenRotation(value){screenRotation=((Math.round(Number(value)||0)%360)+360)%360;$('planar-rotation').value=String(screenRotation);$('planar-rotation-value').value=screenRotation+'°';if(state)refresh();}
     function refresh(){
       try{
-        scene=make({...state,bands:$('planar-bands').checked,aNm:Number($('planar-lattice').value),kv:Number($('planar-voltage').value),diamond:$('planar-diamond').checked,centerLines:$('planar-centers').checked,planeLabels:$('planar-hkl').checked,extended:$('planar-extended')?.checked,halfAngle:Number($('planar-angle').value),labels:$('planar-labels').checked,spots:$('planar-spots')?.checked,forbiddenSpots:$('planar-forbidden-spots')?.checked});
+        scene=make({...state,basis:screenBasis(state.basis,screenRotation),screenRotation,bands:$('planar-bands').checked,aNm:Number($('planar-lattice').value),kv:Number($('planar-voltage').value),diamond:$('planar-diamond').checked,centerLines:$('planar-centers').checked,planeLabels:$('planar-hkl').checked,extended:$('planar-extended')?.checked,halfAngle:Number($('planar-angle').value),labels:$('planar-labels').checked,spots:$('planar-spots')?.checked,forbiddenSpots:$('planar-forbidden-spots')?.checked});
         urls.forEach(url=>URL.revokeObjectURL(url));urls=[];
         const link=(bytes,type)=>{const url=URL.createObjectURL(new Blob([bytes],{type}));urls.push(url);return url;};
         const svgUrl=link(svg(scene),'image/svg+xml');$('planar-preview').src=svgUrl;
         $('planar-svg').href=svgUrl;$('planar-svg').download=scene.name+'.svg';
         $('planar-pdf').href=link(pdf(scene),'application/pdf');$('planar-pdf').download=scene.name+'.pdf';
-        $('planar-title').textContent=(scene.metadata.material||scene.metadata.bandModel&&scene.metadata.diamond?'Si · '+$('planar-voltage').value+' kV':state.model)+' '+D.label(scene.metadata.direction)+($('planar-bands').checked?' 二维菊池带图':' 二维菊池线图');
+        $('planar-title').textContent=(scene.metadata.material||scene.metadata.bandModel&&scene.metadata.diamond?'Si · '+$('planar-voltage').value+' kV':state.model)+' '+D.label(scene.metadata.direction)+($('planar-bands').checked?' 二维菊池带图':' 二维菊池线图')+' · 屏幕旋转 '+screenRotation+'°';
         $('planar-status').textContent=`${scene.metadata.lines.length} 条中心线，视场内 ${scene.metadata.poles.length} 个交点。`+(scene.metadata.pinsOutside.length?` ${scene.metadata.pinsOutside.length} 个已选极在视场外，可增大视场。`:'');
         if($('planar-reflections')){
           const select=$('planar-reflections');select.replaceChildren();
@@ -216,6 +220,13 @@
     }
     function showBand(){const b=scene?.metadata.bands.find(b=>b.hkl.join(',')===$('planar-band-select').value);$('planar-band-info').textContent=b?`(${b.hkl.join(' ')})：d = ${b.dNm.toFixed(5)} nm；几何带宽 2θB = ${b.widthDeg.toFixed(4)}°。实线为带边界，虚线为中心线，淡色填充不代表强度。`:'当前未显示菊池带。';}
     $('planar-band-select').addEventListener('change',showBand);
+    $('planar-rotation').addEventListener('input',event=>setScreenRotation(event.target.value));
+    $('planar-reset-rotation').addEventListener('click',()=>setScreenRotation(0));
+    const preview=$('planar-preview');preview.style.cursor='grab';
+    preview.addEventListener('pointerdown',event=>{if(event.button!==0||!state)return;event.preventDefault();previewPointer={id:event.pointerId,x:event.clientX};preview.setPointerCapture(event.pointerId);preview.style.cursor='grabbing';});
+    preview.addEventListener('pointermove',event=>{if(!previewPointer||event.pointerId!==previewPointer.id)return;const dx=event.clientX-previewPointer.x;if(Math.abs(dx)>1){previewPointer.x=event.clientX;setScreenRotation(screenRotation+dx*.45);}});
+    const releasePreviewPointer=event=>{if(!previewPointer||event.pointerId!==previewPointer.id)return;previewPointer=null;preview.style.cursor='grab';if(preview.hasPointerCapture(event.pointerId))preview.releasePointerCapture(event.pointerId);};
+    preview.addEventListener('pointerup',releasePreviewPointer);preview.addEventListener('pointercancel',releasePreviewPointer);
     for(const id of ['planar-bands','planar-lattice','planar-voltage','planar-diamond','planar-centers','planar-hkl','planar-forbidden-spots'])$(id).addEventListener('change',refresh);
     for(const id of ['planar-lattice','planar-voltage'])$(id).addEventListener('input',refresh);
     function showSpot(){
