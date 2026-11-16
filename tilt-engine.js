@@ -1,0 +1,91 @@
+/* Double tilt geometry, independently implemented from rotation equations.
+ * Column vectors; beam +Z; A = Rx(alpha) Ry(beta), beta carried by alpha.
+ * Degrees at public boundaries. No microscope control or intensity simulation. */
+(() => {
+  'use strict';
+  const rad=Math.PI/180, dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
+  const unit=v=>{const n=Math.hypot(...v);if(v.length!==3||!v.every(Number.isFinite)||!n)throw Error('方向必须为三个有限数，且不能为零。');return v.map(x=>x/n);};
+  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+  const mv=(m,v)=>m.map(row=>dot(row,v)), tr=m=>m[0].map((_,i)=>m.map(r=>r[i]));
+  const mm=(a,b)=>a.map(r=>tr(b).map(c=>dot(r,c)));
+  const rx=a=>{const c=Math.cos(a*rad),s=Math.sin(a*rad);return [[1,0,0],[0,c,-s],[0,s,c]];};
+  const ry=a=>{const c=Math.cos(a*rad),s=Math.sin(a*rad);return [[c,0,s],[0,1,0],[-s,0,c]];};
+  const rz=a=>{const c=Math.cos(a*rad),s=Math.sin(a*rad);return [[c,-s,0],[s,c,0],[0,0,1]];};
+  const stage=(a,b,sa=1,sb=1)=>mm(rx(a*sa),ry(b*sb));
+  function reference(zone,reflection,angle){
+    const z=unit(zone),g=unit(reflection);
+    if(Math.abs(dot(z,g))>1e-7)throw Error('参考反射必须位于当前晶带轴的倒易平面内。');
+    const x=g,y=unit(cross(z,x));
+    return mm(rz(angle),[x,y,z]);
+  }
+  const orientation=(base,a,b,a0,b0,sa=1,sb=1)=>mm(mm(stage(a,b,sa,sb),tr(stage(a0,b0,sa,sb))),base);
+  const residual=(u,target,mode='zone')=>{const v=mv(u,unit(target));return mode==='plane'?Math.asin(Math.min(1,Math.abs(v[2])))/rad:Math.atan2(Math.hypot(v[0],v[1]),v[2])/rad;};
+  const combinedLimit=30;
+  const withinLimits=(a,b,{amin=-35,amax=35,bmin=-30,bmax=30,combined=true}={})=>Number.isFinite(a)&&Number.isFinite(b)&&a>=amin-1e-9&&a<=amax+1e-9&&b>=bmin-1e-9&&b<=bmax+1e-9&&(combined===false||Math.abs(a)+Math.abs(b)<=combinedLimit+1e-9);
+  function solve({base,target,a0=0,b0=0,a=a0,b=b0,amin=-35,amax=35,bmin=-30,bmax=30,sa=1,sb=1,mode='zone',combined=true}){
+    if(![a0,b0,a,b,amin,amax,bmin,bmax,sa,sb].every(Number.isFinite)||amin>amax||bmin>bmax||Math.max(...[amin,amax,bmin,bmax].map(Math.abs))>180||Math.abs(sa)!==1||Math.abs(sb)!==1)throw Error('请检查角度限位和轴方向。');
+    const limits={amin,amax,bmin,bmax,combined};
+    if(!withinLimits(a0,b0,limits)||!withinLimits(a,b,limits))throw Error(combined?'参考或当前读数超出单轴/组合限位：|α| + |β| ≤ 30°。':'参考或当前读数超出单轴限位。');
+    const v=mv(mm(tr(stage(a0,b0,sa,sb)),base),unit(target)),candidates=[];
+    const add=(aa,bb)=>{if(!withinLimits(aa,bb,limits))return;const err=residual(orientation(base,aa,bb,a0,b0,sa,sb),target,mode);if(err<1e-6)candidates.push({a:aa,b:bb,error:err,cost:Math.hypot(aa-a,bb-b)});};
+    if(mode==='zone'){
+      const seed=Math.hypot(v[0],v[2])<1e-12?b*sb:Math.atan2(-v[0],v[2])/rad;
+      for(const bb of [seed,seed+180]){
+        const z=mv(ry(bb),v)[2],aa=Math.atan2(v[1],z)/rad;
+        for(let k=-2;k<=2;k++)for(let j=-2;j<=2;j++)add((aa+360*k)/sa,(bb+360*j)/sb);
+      }
+    }else if(mode==='plane'){
+      // Plane parallel to beam: one constraint, choose a nearby feasible point.
+      // Search alpha at <=0.1 degree spacing, solve beta analytically at each.
+      const r=Math.hypot(v[0],v[2]),phi=Math.atan2(v[0],v[2])/rad;
+      const tryA=aa=>{
+        const s=Math.sin(aa*sa*rad),c=Math.cos(aa*sa*rad);
+        if(Math.abs(c*r)<1e-12){if(Math.abs(s*v[1])<1e-10)add(aa,Math.max(bmin,Math.min(bmax,b)));return;}
+        const t=-s*v[1]/(c*r);if(Math.abs(t)>1+1e-10)return;
+        const d=Math.acos(Math.max(-1,Math.min(1,t)))/rad;
+        for(const bb of [d-phi,-d-phi])for(let j=-2;j<=2;j++)add(aa,(bb+360*j)/sb);
+      };
+      tryA(Math.max(amin,Math.min(amax,a)));
+      const n=Math.max(1,Math.ceil((amax-amin)/.1));for(let i=0;i<=n;i++)tryA(amin+(amax-amin)*i/n);
+      // Intersections with the diamond boundary |alpha|+|beta|=30.
+      if(combined)for(const signA of [-1,1])for(const signB of [-1,1]){
+        const f=t=>mv(stage(signA*t,signB*(30-t),sa,sb),v)[2];
+        let lo=0,fl=f(0);add(0,signB*30);
+        for(let i=1;i<=300;i++){
+          const hi=i/10,fh=f(hi);add(signA*hi,signB*(30-hi));
+          if(fl*fh<0){let l=lo,h=hi,vl=fl;for(let j=0;j<45;j++){const m=(l+h)/2,fm=f(m);if(vl*fm<=0)h=m;else{l=m;vl=fm;}}const t=(l+h)/2;add(signA*t,signB*(30-t));}
+          lo=hi;fl=fh;
+        }
+      }
+      // Also solve at beta boundaries; catches feasible intervals narrower than grid.
+      for(const bb of [bmin,bmax,b]){const w=mv(ry(bb*sb),v);const aa=Math.atan2(-w[2],w[1])/rad;for(let k=-2;k<=2;k++)add((aa+180*k)/sa,bb);}
+    }else throw Error('未知目标模式。');
+    candidates.sort((x,y)=>x.cost-y.cost);return candidates[0]||null;
+  }
+  // Full cubic m-3m direction family, appropriate for Si; retain opposite beam directions.
+  function cubicEquivalents(target){
+    if(target.length!==3||!target.every(Number.isSafeInteger)||!target.some(Boolean))throw Error('等价晶向需要三个非全零整数。');
+    const gcd=(a,b)=>b?gcd(b,a%b):a,g=target.reduce((a,b)=>gcd(a,Math.abs(b)),0),v=target.map(n=>n/g),seen=new Map();
+    seen.set(v.join(','),v);
+    for(const p of [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]])for(const a of [-1,1])for(const b of [-1,1])for(const c of [-1,1]){
+      const w=p.map((i,j)=>v[i]*[a,b,c][j]||0);seen.set(w.join(','),w);
+    }
+    return [...seen.values()];
+  }
+  function equivalentSolutions(options){
+    return cubicEquivalents(options.target).map(target=>{
+      const solution=solve({...options,target,mode:'zone'});
+      const geometric=solution||solve({...options,target,mode:'zone',amin:-180,amax:180,bmin:-180,bmax:180,combined:false});
+      return {target,solution,geometric};
+    });
+  }
+  function quaternion(m){
+    const t=m[0][0]+m[1][1]+m[2][2];let q;
+    if(t>0){const s=2*Math.sqrt(t+1);q=[(m[2][1]-m[1][2])/s,(m[0][2]-m[2][0])/s,(m[1][0]-m[0][1])/s,s/4];}
+    else {let i=0;if(m[1][1]>m[i][i])i=1;if(m[2][2]>m[i][i])i=2;const j=(i+1)%3,k=(i+2)%3,s=2*Math.sqrt(1+m[i][i]-m[j][j]-m[k][k]);q=[0,0,0,0];q[i]=s/4;q[j]=(m[j][i]+m[i][j])/s;q[k]=(m[k][i]+m[i][k])/s;q[3]=(m[k][j]-m[j][k])/s;}
+    return q;
+  }
+  const api={unit,dot,cross,mv,mm,tr,rx,ry,rz,stage,reference,orientation,residual,solve,quaternion,withinLimits,combinedLimit,cubicEquivalents,equivalentSolutions};
+  if(typeof module!=='undefined')module.exports=api;
+  if(typeof window!=='undefined')window.KikuchiTilt=api;
+})();
