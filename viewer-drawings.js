@@ -164,7 +164,7 @@
     document.querySelectorAll('[data-edition]').forEach(b => b.setAttribute('aria-pressed',String(b.dataset.edition===edition)));
     $('edition-tag').textContent=edition==='teaching'?'低指数简明版':'Austin P. Day 原图版';
     $('legend-block').hidden=edition==='day';
-    $('download-block').hidden=false;$('source-links').hidden=edition==='day';
+    $('download-block').hidden=false;$('source-links').hidden=false;
     $('legend').replaceChildren();
     for (const line of data.legends[model]) {
       const item=document.createElement('span');item.className='legend-item';
